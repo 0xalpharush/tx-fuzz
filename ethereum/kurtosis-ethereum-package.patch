@@ -1,0 +1,17 @@
+diff --git a/src/transaction_spammer/transaction_spammer.star b/src/transaction_spammer/transaction_spammer.star
+index 2191a62..8286935 100644
+--- a/src/transaction_spammer/transaction_spammer.star
++++ b/src/transaction_spammer/transaction_spammer.star
+@@ -22,11 +22,7 @@ def launch_transaction_spammer(
+ 
+ 
+ def get_config(prefunded_addresses, el_uri, tx_spammer_extra_args, electra_fork_epoch):
+-    # Temp hack to use the old tx-fuzz image until we can get the new one working
+-    if electra_fork_epoch != None:
+-        tx_spammer_image = "ethpandaops/tx-fuzz:kaustinen-281adbc"
+-    else:
+-        tx_spammer_image = "ethpandaops/tx-fuzz:master"
++    tx_spammer_image = "tx-fuzz-ethereum:local"
+ 
+     cmd = [
+         "spam",

@@ -52,8 +52,10 @@ func localEndpoint(raw string) error {
 		return err
 	}
 	ip := net.ParseIP(u.Hostname())
-	if u.Scheme != "http" || ip == nil || !ip.IsLoopback() || u.User != nil {
-		return fmt.Errorf("endpoint must be a literal loopback HTTP address: %q", raw)
+	isLoopback := ip != nil && ip.IsLoopback()
+	isEnclaveService := u.Hostname() == "baseline" || u.Hostname() == "candidate"
+	if u.Scheme != "http" || (!isLoopback && !isEnclaveService) || u.User != nil {
+		return fmt.Errorf("endpoint must be loopback or a comparison enclave service: %q", raw)
 	}
 	return nil
 }

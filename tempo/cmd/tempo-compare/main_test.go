@@ -20,7 +20,7 @@ import (
 )
 
 func TestLocalEndpoint(t *testing.T) {
-	for _, raw := range []string{"http://127.0.0.1:8545", "http://[::1]:8545"} {
+	for _, raw := range []string{"http://127.0.0.1:8545", "http://[::1]:8545", "http://baseline:8545", "http://candidate:8545"} {
 		if err := localEndpoint(raw); err != nil {
 			t.Fatal(err)
 		}

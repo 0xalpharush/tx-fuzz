@@ -1,4 +1,21 @@
 {
   "baseline_image": "ghcr.io/tempoxyz/tempo-localnet@sha256:1a8492c0b37474967df07480d919fbf03cedf34ea33a09818bba13a7b83fde84",
-  "candidate_image": "ghcr.io/tempoxyz/tempo-localnet@sha256:b5979298d5576c7ca494cda17662c25648ce78e20daf3fc6d78cbae3c24b94dd"
+  "baseline_source": "tempoxyz/tempo@3fc576fe3",
+  "baseline_engine": "revm",
+  "candidate_image": "ghcr.io/tempoxyz/tempo-localnet@sha256:b5979298d5576c7ca494cda17662c25648ce78e20daf3fc6d78cbae3c24b94dd",
+  "candidate_source": "tempoxyz/tempo@11dddd681",
+  "candidate_engine": "evm2",
+  "spammer_image": "tx-fuzz-tempo:local",
+  "txgen_image": "txgen-tempo:local",
+  "forkmon_image": "ethpandaops/execution-monitor:master",
+  "seed": 1,
+  "programs_per_seed": 64,
+  "max_code_bytes": 512,
+  "duration": "5m",
+  "oracle_duration": "7m",
+  "block_time": "500ms",
+  "txgen_tps": 10,
+  "min_blocks": 64,
+  "max_oracle_lag": 10,
+  "stall_timeout": "30s"
 }

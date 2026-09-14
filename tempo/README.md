@@ -1,38 +1,38 @@
-# Tempo
+# Tempo revm versus EVM2
 
-This separate Go module uses tempo-go without changing the upstream Ethereum tools.
-
-## Corpus
-
-```sh
-go run ./cmd/tempo-corpus -seed 1 -chain-id 1337 > corpus.jsonl
-go test -race ./...
-```
-
-Generates deterministic transaction fixtures for the SDK's precompile ABIs and
-transaction types. Tests check ABI arguments, transaction roundtrips and sender
-signatures. The corpus is offline: ABI-valid arguments do not imply an executable
-state transition, and dynamic contracts use placeholder addresses.
-
-## Localnet comparison
-
-Requires Docker and Kurtosis 1.20.0. From this directory:
+This package drives two Tempo implementations on one canonical chain. The
+`tempo-revm` dev node is the only block producer and transaction submission
+endpoint. `tempo-evm2` has the same genesis, receives the producer's blocks over
+reth's RPC consensus importer, and independently validates and executes every
+imported payload.
 
 ```sh
-kurtosis run --enclave tempo-compare ./kurtosis/main.star --args-file ./kurtosis/images.json
-go run ./cmd/tempo-compare \
-  -baseline-rpc "$(kurtosis port print tempo-compare baseline rpc)" \
-  -candidate-rpc "$(kurtosis port print tempo-compare candidate rpc)" -seed 1
-kurtosis enclave rm --force tempo-compare
+docker build -t tx-fuzz-tempo:local .
+kurtosis run --enclave tempo-compare ./kurtosis/main.star \
+  --args-file ./kurtosis/images.local.json
 ```
 
-Set `baseline_image` and `candidate_image` in `kurtosis/images.json` to the
-linux/amd64 localnet image digests being compared. Each service runs an independent
-dev chain. Use fresh enclaves: the runner accepts only loopback HTTP endpoints on
-chain ID 1337 and funds public fixture keys through the localnet faucet.
+The campaign combines two input generators:
 
-The runner exercises transfers, batching, memos, approvals, access lists, parallel
-nonces, fee-token selection, same-account sponsorship, and a fixed storage contract.
-It compares hashes, receipt status/gas/events, expected recipient balances, deployed
-code and storage. Block metadata is excluded because the chains mine independently.
-This is a bounded regression suite, not full protocol or consensus coverage.
+- tx-fuzz continuously rotates deterministic FuzzyVM seeds and submits random
+  runtime bytecode and calldata. Block-environment opcodes are allowed because
+  both engines execute the same block context.
+- txgen continuously submits Tempo's maintained mixed benchmark shapes: native
+  AA and expiring nonces, TIP-20 and legacy EIP-1559 transfers, MPP channel
+  operations, DEX calls, and batched calls. These are structured seeds that
+  complement rather than replace random bytecode generation.
+
+The strict oracle requires each imported block, transaction order, block hash,
+state root, and receipts root to match. It compares
+`trace_replayBlockTransactions(block, ["vmTrace"])` for every block and samples
+`trace_replayTransaction(hash, ["vmTrace"])` once per non-empty block. The
+sample covers the separate transaction lookup RPC path without tracing every
+transaction twice. Stock `el-forkmon` runs beside the strict oracle as a live
+head/fork dashboard.
+
+Both generators run for the configured duration and log seeds and signed raw
+transactions. Those records are only failure reproducers; transactions are not
+submitted independently to the candidate chain.
+
+`images.json` records pinned CI image digests and source commits.
+`images.local.json` selects native locally built images for development.
