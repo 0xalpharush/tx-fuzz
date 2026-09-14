@@ -37,6 +37,7 @@ func TestLocalEndpoint(t *testing.T) {
 func mockChain(t *testing.T, gas uint64, corruptBalance bool) *httptest.Server {
 	t.Helper()
 	var balance big.Int
+	var storage uint64
 	contract, err := precompiles.ABI("ITIP20")
 	if err != nil {
 		t.Fatal(err)
@@ -84,6 +85,13 @@ func mockChain(t *testing.T, gas uint64, corruptBalance bool) *httptest.Server {
 				}
 			}
 			for _, call := range tx.Calls {
+				if call.To == nil {
+					continue
+				}
+				if len(call.Data) == 0 {
+					storage = 42
+					continue
+				}
 				method, err := contract.MethodById(call.Data[:4])
 				if err != nil {
 					t.Error(err)
@@ -99,6 +107,10 @@ func mockChain(t *testing.T, gas uint64, corruptBalance bool) *httptest.Server {
 				}
 			}
 			result = crypto.Keccak256Hash(common.FromHex(raw))
+		case "eth_getCode":
+			result = storageRuntime
+		case "eth_getStorageAt":
+			result = fmt.Sprintf("0x%064x", storage)
 		case "eth_call":
 			n := new(big.Int).Set(&balance)
 			if corruptBalance {
@@ -143,7 +155,7 @@ func TestCompare(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(output.String(), `"passed":23`) {
+			if !strings.Contains(output.String(), `"passed":25`) {
 				t.Fatal(output.String())
 			}
 		})

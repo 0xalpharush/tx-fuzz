@@ -27,14 +27,16 @@ suite (`make compatibility` in that repository).
 
 ## Disposable Kurtosis comparison
 
-The separate `tempo-compare` command submits exactly 23 valid transactions per
+The separate `tempo-compare` command submits exactly 25 valid transactions per
 chain: 16 seeded transfers plus batching, memo transfer, approval, access lists,
-parallel nonces, explicit fee token and same-account sponsorship. It compares
+parallel nonces, explicit fee token and same-account sponsorship, followed by
+deployment and execution of a fixed storage contract. It compares
 transaction hashes, successful receipt status, gas used, ordered event payloads
 and recipient token balances, with an independently calculated expected balance.
+The storage fixture must deploy the expected bytecode and write 42 to slot zero.
 Block hashes, heights, transaction/log indices and timestamps are deliberately
 excluded because the two chains mine independently. It does not compare full
-state roots, sender fee balances or general EVM execution.
+state roots, sender fee balances or general EVM instruction coverage.
 
 Requires Docker, Kurtosis 1.20.0 and Go 1.25.9. From the repository root:
 

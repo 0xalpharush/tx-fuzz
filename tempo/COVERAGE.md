@@ -27,13 +27,14 @@ review observations, not remotely exercised failure cases.
 
 - Offline: all 210 ABI methods across 19 interfaces, plus 11 transaction feature
   fixtures; encoding, argument roundtrip and signature recovery tests only.
-- Stateful Kurtosis scenario: 23 ordinary transactions on each independent chain;
-  receipt/event equivalence and expected recipient balance. See README for cases.
+- Stateful Kurtosis scenario: 25 ordinary transactions on each independent chain;
+  receipt/event equivalence, expected recipient balance, and a fixed storage
+  contract's deployment and slot write. See README for cases.
 - Not established: all precompile state machines, privileged administration,
   DEX matching, liquidity transitions, dynamic deployments/zones, stablecoin DEX,
   validator/committee changes, staking, fee AMM economics, account-key provisioning
   and revocation, P256/WebAuthn, separate-account sponsorship, delegated execution,
-  validity/expiry behavior, reverted batches, contract deployment/general EVM,
+  validity/expiry behavior, reverted batches, general EVM instruction coverage,
   full state roots, reorgs, multi-validator consensus, or production fork schedules.
 - Uniformly successful transactions are necessary but insufficient. The runner
   also requires matching gas/logs and an independently calculated token balance;
