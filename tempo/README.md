@@ -2,9 +2,9 @@
 
 This package drives two Tempo implementations on one canonical chain. The
 `tempo-revm` dev node is the only block producer and transaction submission
-endpoint. `tempo-evm2` has the same genesis, receives the producer's blocks over
-reth's RPC consensus importer, and independently validates and executes every
-imported payload.
+endpoint. `tempo-evm2` has the same genesis and uses Tempo's uncertified follow
+mode, backed by reth's RPC consensus importer, to independently validate and
+execute every imported payload.
 
 ```sh
 docker build -t tx-fuzz-tempo:local .

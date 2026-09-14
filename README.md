@@ -56,9 +56,10 @@ Two workflows use the same differential invariant and RPC trace oracle:
   sampled `vmTrace` responses to agree after four epochs.
 - `tempo-compatibility.yml` runs a revm producer and an EVM2 validating peer on
   one canonical Tempo chain. tx-fuzz random bytecode and txgen structured Tempo
-  traffic are submitted only to the producer. Reth's RPC consensus importer
-  supplies the producer's canonical payloads to the peer, which must
-  independently derive identical blocks, roots, and `vmTrace` responses.
+  traffic are submitted only to the producer. Tempo's uncertified follow mode,
+  backed by reth's RPC consensus importer, supplies the producer's canonical
+  payloads to the peer, which must independently derive identical blocks,
+  roots, and `vmTrace` responses.
 
 Both workflows pin source commits and retain service logs and reproducer data.
 The Ethereum campaign runs on weekdays and can also be dispatched manually;
