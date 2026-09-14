@@ -41,7 +41,7 @@ state roots, sender fee balances or general EVM instruction coverage.
 Requires Docker, Kurtosis 1.20.0 and Go 1.25.9. From the repository root:
 
 ```sh
-kurtosis run --enclave tempo-compat ./tempo/kurtosis
+kurtosis run --enclave tempo-compat ./tempo/kurtosis/main.star
 cd tempo
 go run ./cmd/tempo-compare \
   -main-rpc "$(kurtosis port print tempo-compat main rpc)" \
