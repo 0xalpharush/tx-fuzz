@@ -39,6 +39,12 @@ default; use `--blob-sidecar-version 0` to target a node from before Osaka.
 mix universal (chain id 0) authorizations, wrong chains and nonces,
 self-delegation and delegation clearing.
 
+## Tempo
+
+The [Tempo module](tempo/README.md) provides an offline corpus generator and a
+localnet comparison runner. It has its own Go module and does not change the
+Ethereum commands above.
+
 ## Advanced usage
 You can optionally specify a seed parameter or a secret key to use as a faucet
 

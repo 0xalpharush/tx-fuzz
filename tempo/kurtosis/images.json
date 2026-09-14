@@ -1,0 +1,4 @@
+{
+  "baseline_image": "ghcr.io/tempoxyz/tempo-localnet@sha256:1a8492c0b37474967df07480d919fbf03cedf34ea33a09818bba13a7b83fde84",
+  "candidate_image": "ghcr.io/tempoxyz/tempo-localnet@sha256:b5979298d5576c7ca494cda17662c25648ce78e20daf3fc6d78cbae3c24b94dd"
+}
