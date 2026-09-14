@@ -9,7 +9,7 @@ sync backfill any blocks mined before the live RPC subscription was ready.
 
 ```sh
 docker build -t tx-fuzz-tempo:local .
-kurtosis run --enclave tempo-compare ./kurtosis/main.star \
+kurtosis run --enclave tempo-compare ./kurtosis \
   --args-file ./kurtosis/images.local.json
 ```
 

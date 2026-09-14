@@ -52,7 +52,7 @@ jobs:
           echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis-cli_1.20.0_linux_amd64.tar.gz' | sha256sum --check
           tar -xzf kurtosis-cli_1.20.0_linux_amd64.tar.gz kurtosis
       - name: Run one-chain revm versus EVM2 differential soak
-        run: ./kurtosis run --enclave tempo-compat-${{ github.run_id }} ./tempo/kurtosis/main.star --args-file ./tempo/kurtosis/images.json 2>&1 | tee kurtosis.log
+        run: ./kurtosis run --enclave tempo-compat-${{ github.run_id }} ./tempo/kurtosis --args-file ./tempo/kurtosis/images.json 2>&1 | tee kurtosis.log
       - name: Capture localnet service logs
         if: always()
         continue-on-error: true
