@@ -27,8 +27,9 @@ jobs:
           go vet ./...
           go build -o ../tempo-compare ./cmd/tempo-compare
       - name: Install pinned Kurtosis
+        timeout-minutes: 3
         run: |
-          wget -q https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.tar.gz
+          wget -q --timeout=30 --tries=3 https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.tar.gz
           echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis-cli_1.20.0_linux_amd64.tar.gz' | sha256sum --check
           tar -xzf kurtosis-cli_1.20.0_linux_amd64.tar.gz kurtosis
       - name: Start independent pinned localnets
@@ -38,6 +39,15 @@ jobs:
           MAIN_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} main rpc)
           EVM2_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} evm2 rpc)
           ./tempo-compare -main-rpc "$MAIN_RPC" -evm2-rpc "$EVM2_RPC" -seed 1 | tee results.jsonl
+      - name: Capture localnet service logs
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        run: ./kurtosis service logs --all-services --all tempo-compat-${{ github.run_id }} 2>&1 | tee services.log
+      - name: Capture evm2 exit state
+        if: always()
+        continue-on-error: true
+        run: docker ps -aq --filter 'name=evm2--' | xargs -r docker inspect --format '{{json .State}}' | tee evm2-state.jsonl
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -45,6 +55,8 @@ jobs:
           path: |
             kurtosis.log
             results.jsonl
+            services.log
+            evm2-state.jsonl
       - name: Remove only this run's enclave
         if: always()
         run: ./kurtosis enclave rm --force tempo-compat-${{ github.run_id }}
