@@ -218,8 +218,9 @@ with open('/output/dev.json', 'w') as output:
             max_memory=1024,
         ),
     )
-    # The candidate's RPC consensus client imports the producer's canonical
-    # payloads. The oracle waits for both independently executed views.
+    # The candidate's RPC consensus client imports live canonical payloads.
+    # Connect the peers so normal reth sync can backfill any blocks mined before
+    # the subscription was ready, then compare both independently executed views.
     plan.exec(
         service_name="tempo-chaos",
         recipe=ExecRecipe(
@@ -228,6 +229,7 @@ with open('/output/dev.json', 'w') as output:
                 "--left-rpc=http://tempo-revm:8545",
                 "--right-rpc=http://tempo-evm2:8545",
                 "--chain-id=1337",
+                "--connect-peers",
                 "--duration={}".format(args["oracle_duration"]),
                 "--min-blocks={}".format(args["min_blocks"]),
                 "--max-lag={}".format(args["max_oracle_lag"]),

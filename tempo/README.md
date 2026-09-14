@@ -4,7 +4,8 @@ This package drives two Tempo implementations on one canonical chain. The
 `tempo-revm` dev node is the only block producer and transaction submission
 endpoint. `tempo-evm2` has the same genesis and uses Tempo's uncertified follow
 mode, backed by reth's RPC consensus importer, to independently validate and
-execute every imported payload.
+execute every imported payload. A direct devp2p connection lets normal reth
+sync backfill any blocks mined before the live RPC subscription was ready.
 
 ```sh
 docker build -t tx-fuzz-tempo:local .
