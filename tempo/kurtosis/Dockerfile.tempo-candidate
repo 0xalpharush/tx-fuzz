@@ -1,0 +1,37 @@
+FROM rust:1.96-bookworm@sha256:19817ead3289c8c631c73df281e18b59b172f6a31f4f563290f69cddd06c30e9 AS builder
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        build-essential \
+        clang \
+        libclang-dev \
+        libssl-dev \
+        mold \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+# Debug symbols and incremental state are unnecessary in the ephemeral campaign
+# image and otherwise consume most of a hosted runner's disk.
+ENV CARGO_PROFILE_DEV_DEBUG=0 \
+    CARGO_PROFILE_DEV_INCREMENTAL=false
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    RUSTFLAGS="-C link-arg=-fuse-ld=mold" \
+    cargo build --jobs 2 --profile dev \
+        --bin tempo --features "asm-keccak,jemalloc,localnet" \
+        --bin tempo-localnet --features "asm-keccak,jemalloc,localnet"
+
+FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /data
+COPY --from=builder /app/target/debug/tempo /usr/local/bin/tempo
+COPY --from=builder /app/target/debug/tempo-localnet /usr/local/bin/tempo-localnet
+ENTRYPOINT ["/usr/local/bin/tempo-localnet"]

@@ -18,7 +18,10 @@ defaults:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
+    env:
+      TEMPO_EVM2_REPO: https://github.com/0xalpharush/tempo.git
+      TEMPO_EVM2_REF: cf29b4a0c90a6c071b95f69c20b9b82ba9be92e1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
@@ -33,6 +36,15 @@ jobs:
           go build ./cmd/tempo-compare ./cmd/tempo-evm-diff ./cmd/tempo-chain-oracle
       - name: Build tx-fuzz service image
         run: docker build -t tx-fuzz-tempo:local ./tempo
+      - name: Build exact Tempo EVM2 candidate
+        run: |
+          git clone --filter=blob:none "$TEMPO_EVM2_REPO" tempo-evm2-src
+          git -C tempo-evm2-src checkout --detach "$TEMPO_EVM2_REF"
+          test "$(git -C tempo-evm2-src rev-parse HEAD)" = "$TEMPO_EVM2_REF"
+          docker build \
+            --file "$GITHUB_WORKSPACE/tempo/kurtosis/Dockerfile.tempo-candidate" \
+            --tag tempo-localnet:evm2-cf29b4a0c \
+            tempo-evm2-src
       - name: Build pinned txgen with Tempo's maintained benchmark seeds
         env:
           TXGEN_REF: 5ab341ae38a875e9755cb93628af96ee020ebf38
