@@ -1,4 +1,4 @@
-module github.com/MariusVanDerWijden/tx-fuzz/tempo
+module github.com/0xalpharush/tx-fuzz/tempo
 
 go 1.25.9
 

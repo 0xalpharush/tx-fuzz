@@ -1,8 +1,8 @@
 # Independent dev chains: a compatibility test, not a mixed consensus network.
-def run(plan):
+def run(plan, args):
     images = {
-        "main": "ghcr.io/tempoxyz/tempo-localnet@sha256:1a8492c0b37474967df07480d919fbf03cedf34ea33a09818bba13a7b83fde84",
-        "evm2": "ghcr.io/tempoxyz/tempo-localnet@sha256:cec6fea4262256d07ca622a33118207ca4fa417caf258882da8bea648f143fbb",
+        "baseline": args["baseline_image"],
+        "candidate": args["candidate_image"],
     }
     for name, image in images.items():
         plan.add_service(name=name, config=ServiceConfig(
@@ -14,7 +14,7 @@ def run(plan):
             ready_conditions=ReadyCondition(
                 recipe=ExecRecipe(command=["/usr/local/bin/tempo-localnet", "--health"]),
                 field="code", assertion="==", target_value=0,
-                interval="1s", timeout="5m",
+                interval="1s", timeout="150s",
             ),
         ))
         plan.exec(service_name=name, recipe=ExecRecipe(command=["/usr/local/bin/tempo", "--version"]))

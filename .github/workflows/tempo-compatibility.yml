@@ -1,7 +1,6 @@
 name: Tempo localnet compatibility
 on:
   push:
-    branches: [master, centaur/tempo-offline-corpus-20260914]
     paths: ['tempo/**', '.github/workflows/tempo-compatibility.yml']
   pull_request:
     paths: ['tempo/**', '.github/workflows/tempo-compatibility.yml']
@@ -33,21 +32,21 @@ jobs:
           echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis-cli_1.20.0_linux_amd64.tar.gz' | sha256sum --check
           tar -xzf kurtosis-cli_1.20.0_linux_amd64.tar.gz kurtosis
       - name: Start independent pinned localnets
-        run: ./kurtosis run --enclave tempo-compat-${{ github.run_id }} ./tempo/kurtosis/main.star 2>&1 | tee kurtosis.log
+        run: ./kurtosis run --enclave tempo-compat-${{ github.run_id }} ./tempo/kurtosis/main.star --args-file ./tempo/kurtosis/images.json 2>&1 | tee kurtosis.log
       - name: Compare valid transactions and state
         run: |
-          MAIN_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} main rpc)
-          EVM2_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} evm2 rpc)
-          ./tempo-compare -main-rpc "$MAIN_RPC" -evm2-rpc "$EVM2_RPC" -seed 1 | tee results.jsonl
+          BASELINE_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} baseline rpc)
+          CANDIDATE_RPC=$(./kurtosis port print tempo-compat-${{ github.run_id }} candidate rpc)
+          ./tempo-compare -baseline-rpc "$BASELINE_RPC" -candidate-rpc "$CANDIDATE_RPC" -seed 1 | tee results.jsonl
       - name: Capture localnet service logs
         if: always()
         continue-on-error: true
         timeout-minutes: 1
         run: ./kurtosis service logs --all-services --all tempo-compat-${{ github.run_id }} 2>&1 | tee services.log
-      - name: Capture evm2 exit state
+      - name: Capture container states
         if: always()
         continue-on-error: true
-        run: docker ps -aq --filter 'name=evm2--' | xargs -r docker inspect --format '{{json .State}}' | tee evm2-state.jsonl
+        run: docker ps -aq --filter 'name=baseline--' --filter 'name=candidate--' | xargs -r docker inspect --format '{{.Name}} {{json .State}}' | tee container-states.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -56,7 +55,7 @@ jobs:
             kurtosis.log
             results.jsonl
             services.log
-            evm2-state.jsonl
+            container-states.log
       - name: Remove only this run's enclave
         if: always()
         run: ./kurtosis enclave rm --force tempo-compat-${{ github.run_id }}

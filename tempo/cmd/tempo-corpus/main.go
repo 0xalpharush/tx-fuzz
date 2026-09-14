@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/MariusVanDerWijden/tx-fuzz/tempo"
+	"github.com/0xalpharush/tx-fuzz/tempo"
 )
 
 func main() {
