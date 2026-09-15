@@ -13,12 +13,11 @@ network_params:
   genesis_delay: 20
 
 additional_services:
-  - tx_fuzz
+  - tx_spammer
   - forkmon
 
-tx_fuzz_params:
-  image: tx-fuzz-ethereum:local
-  tx_fuzz_extra_args:
+tx_spammer_params:
+  tx_spammer_extra_args:
     - "--seed=1"
     - "--accounts=20"
     - "--txcount=2"
