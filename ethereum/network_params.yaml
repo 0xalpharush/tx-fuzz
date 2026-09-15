@@ -14,7 +14,7 @@ network_params:
 
 additional_services:
   - tx_spammer
-  - forkmon
+  - el_forkmon
 
 tx_spammer_params:
   tx_spammer_extra_args:
