@@ -1,7 +1,12 @@
 diff --git a/docker/Dockerfile b/docker/Dockerfile
 --- a/docker/Dockerfile
 +++ b/docker/Dockerfile
-@@ -30,4 +30,4 @@
+@@ -25,9 +25,9 @@
+ RUN apt-get update && apt-get install -y --no-install-recommends \
+     ca-certificates curl git \
+     && rm -rf /var/lib/apt/lists/*
+ RUN curl -fsSL https://foundry.paradigm.xyz | bash \
+     && /root/.foundry/bin/foundryup --install nightly
  ENV PATH="/root/.foundry/bin:${PATH}"
  WORKDIR /app/crates/contracts
  COPY crates/contracts .
