@@ -117,6 +117,11 @@ while true; do
     if (( result == 0 && control_result != 0 )); then
       result=$control_result
     fi
+    txgen_success=$(awk '/Successful:/ {value=$2} END {print value+0}' "$evidence/txgen.log")
+    if (( txgen_success == 0 )); then
+      echo "txgen did not land a transaction" >&2
+      result=1
+    fi
     fi
   else
     result=$launch_result

@@ -117,6 +117,12 @@ while true; do
   wait "$fuzz_pid" || result=$?
   set -e
 
+  txgen_success=$(awk '/Successful:/ {value=$2} END {print value+0}' "$evidence/txgen.log")
+  if (( txgen_success == 0 )); then
+    echo "txgen did not land a transaction" >&2
+    result=1
+  fi
+
   docker logs "$revm_name" >"$evidence/revm.log" 2>&1 || true
   docker logs "$evm2_name" >"$evidence/evm2.log" 2>&1 || true
   if ! grep -q '"outcome":"accepted"' "$evidence/tx-fuzz.log"; then
