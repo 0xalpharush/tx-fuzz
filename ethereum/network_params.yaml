@@ -2,12 +2,15 @@ participants:
   - el_client_type: reth
     el_client_image: reth-revm:local
     cl_client_type: lighthouse
+    cl_client_image: sigp/lighthouse:v4.6.0
   - el_client_type: reth
     el_client_image: reth-evm2:local
     cl_client_type: lighthouse
+    cl_client_image: sigp/lighthouse:v4.6.0
   - el_client_type: geth
     el_client_image: ethereum/client-go:v1.13.15
     cl_client_type: lighthouse
+    cl_client_image: sigp/lighthouse:v4.6.0
 
 network_params:
   seconds_per_slot: 4
