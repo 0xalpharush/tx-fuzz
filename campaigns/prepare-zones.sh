@@ -15,6 +15,7 @@ if [[ ! -e "$zones_repo/.git" ]]; then
 fi
 git -C "$zones_repo" fetch https://github.com/0xalpharush/zones.git "$zones_ref"
 git -C "$zones_repo" checkout --detach "$zones_ref"
+git -C "$zones_repo" submodule update --init --recursive
 build_patch="$script_repo/zones/docker-build-jobs.patch"
 if git -C "$zones_repo" apply --check "$build_patch"; then
   git -C "$zones_repo" apply "$build_patch"
