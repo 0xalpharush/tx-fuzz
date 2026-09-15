@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 work_root=${WORK_ROOT:-"$(dirname "$repo_root")"}
-package_repo=${ETHEREUM_PACKAGE:-"$work_root/ethereum-package-latest"}
+package_repo=${ETHEREUM_PACKAGE:-"$work_root/ethereum-package-state"}
 run_root=${RUN_ROOT:-"$repo_root/campaign-runs/ethereum"}
 duration=${DURATION:-4m}
 args_template=${ARGS_TEMPLATE:-"$repo_root/ethereum/network_params.yaml"}
@@ -11,8 +11,9 @@ mkdir -p "$run_root"
 
 while true; do
   started=$(date -u +%Y%m%dT%H%M%SZ)
+  started_lower=$(printf '%s' "$started" | tr '[:upper:]' '[:lower:]')
   seed=${SEED:-$((10#$(date -u +%s) ^ RANDOM << 15 ^ RANDOM))}
-  enclave="ethereum-state-${started,,}-${seed}"
+  enclave="ethereum-state-${started_lower}-${seed}"
   evidence="$run_root/$enclave"
   mkdir -p "$evidence"
   sed "s/--seed=[0-9][0-9]*/--seed=$seed/" "$args_template" >"$evidence/args.yaml"
@@ -34,8 +35,10 @@ while true; do
   if (( launch_result == 0 )); then
     baseline_url=$(kurtosis port print "$enclave" el-1-reth-lighthouse rpc)
     candidate_url=$(kurtosis port print "$enclave" el-2-reth-lighthouse rpc)
+    control_url=$(kurtosis port print "$enclave" el-3-geth-lighthouse rpc)
     [[ "$baseline_url" == *://* ]] || baseline_url="http://$baseline_url"
     [[ "$candidate_url" == *://* ]] || candidate_url="http://$candidate_url"
+    [[ "$control_url" == *://* ]] || control_url="http://$control_url"
     chain_hex=$(curl --fail --silent --show-error \
       --header 'content-type: application/json' \
       --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
@@ -54,7 +57,11 @@ while true; do
         --header 'content-type: application/json' \
         --data '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
         "$candidate_url" | jq -er .result)
-      if (( baseline_head > 0 && candidate_head > 0 )); then
+      control_head=$(curl --fail --silent --show-error \
+        --header 'content-type: application/json' \
+        --data '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}' \
+        "$control_url" | jq -er .result)
+      if (( baseline_head > 0 && candidate_head > 0 && control_head > 0 )); then
         ready=1
         break
       fi
@@ -78,6 +85,16 @@ while true; do
     docker run --rm --network host \
       --entrypoint /usr/local/bin/evm-rpc-oracle tx-fuzz-oracles:local \
       --left-rpc="$baseline_url" \
+      --right-rpc="$control_url" \
+      --head-tag=latest \
+      --duration="$duration" \
+      --min-blocks=32 \
+      --max-lag=4 \
+      --stall-timeout=30s >"$evidence/geth-control-oracle.jsonl" 2>&1 &
+    control_pid=$!
+    docker run --rm --network host \
+      --entrypoint /usr/local/bin/evm-rpc-oracle tx-fuzz-oracles:local \
+      --left-rpc="$baseline_url" \
       --right-rpc="$candidate_url" \
       --head-tag=latest \
       --duration="$duration" \
@@ -87,12 +104,18 @@ while true; do
     result=${PIPESTATUS[0]}
     if (( result != 0 )); then
       kill "$txgen_pid" 2>/dev/null || true
+      kill "$control_pid" 2>/dev/null || true
     fi
     wait "$txgen_pid"
     txgen_result=$?
+    wait "$control_pid"
+    control_result=$?
     set -e
     if (( result == 0 && txgen_result != 0 )); then
       result=$txgen_result
+    fi
+    if (( result == 0 && control_result != 0 )); then
+      result=$control_result
     fi
     fi
   else

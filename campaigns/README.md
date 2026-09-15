@@ -1,60 +1,45 @@
-# Differential state campaigns
+# Differential campaigns
 
-These runners keep generating fresh seeded campaigns until the first mismatch. A failed run keeps
-its node data, logs, exact refs, seed, and generated failure artifacts under `campaign-runs/`.
+All runners are continuous: they generate traffic for a four-minute window, require useful
+activity, rotate to a fresh seed, and stop on the first failure. Evidence and the replay seed are
+written under `campaign-runs/`. There is no `run once` mode.
 
-## Ethereum: revm versus EVM2
+## Pinned stack
+
+| Campaign | Nodes | Exact dependencies | Compatibility note |
+| --- | --- | --- | --- |
+| Ethereum | Reth/revm, Reth/EVM2, and Geth; each paired with a beacon node and eligible to propose | Reth/revm `8a993c0327d92a0e96ec37a021f5ab806026b885`; Reth/EVM2 `39b99d8a1594b3417263e67d503b4a1e908a068c`; Kurtosis Ethereum package `195fcb9093b7dd6c8d35aaf4a0f7bc956f2f1fa9` | The EVM2 ref is PR 25002 rebased onto its current Reth baseline with the vmTrace stack. |
+| Tempo | Two signing Tempo validators on one Commonware chain; one revm and one EVM2, both eligible to propose | Tempo/revm `3fc576fe3`; Tempo/EVM2 `f27d654a4`; embedded Reth/EVM2 `39b99d8a1`; embedded EVM2 `48d26ce9`; txgen `0d62b7db` | This Tempo/EVM2 ref does **not** expose `eth_getMultiProof`; the state-root campaign does not need it. Do not use it for the Zones prover. |
+| Zones | TIP-1098 Tempo L1, a Zone leader, and an independent rpc-only Zone sub-verifier | Tempo/TIP-1098 `15b79e0c63d0ac98f5b85cae2ba858155b5301d3` (Reth `95823365b9f0787a676de38c044b54830e3fb29d`); Zones `1aaabe19b10703c42324ccce4c19a7336f227b21`; txgen `0d62b7db` | L1 uses the pre-T13 stub verifier for settlement. The rpc-only sub-verifier runs the SPF in process and must independently accept canonical batches; no Nitro attestation is required. |
+
+## Run
+
+From the `tx-fuzz` checkout, prepare the images once:
 
 ```console
 ./campaigns/prepare-ethereum.sh
-screen -dmS evm2-ethereum-state \
-  bash -lc 'cd "$PWD" && exec ./campaigns/ethereum-state-loop.sh'
-```
-
-Both Reth implementations participate in one Kurtosis Ethereum chain. `tx-fuzz` and `txgen` feed
-the producer; the gate compares finalized canonical blocks, including block hash, state root,
-receipts root, and transaction order.
-
-## Tempo: revm versus EVM2
-
-```console
-screen -dmS evm2-tempo-state \
-  bash -lc 'cd "$PWD" && exec ./campaigns/tempo-state-loop.sh'
-```
-
-The revm node produces one Tempo chain and the EVM2 follower imports and independently executes
-the same payloads. Both generators feed only the producer. The same canonical block fields are the
-gate; RPC trace parity is intentionally outside this state-transition campaign.
-
-## Tempo Zones: TIP-1098 L1 plus prover-enabled Zone
-
-```console
+./campaigns/prepare-tempo.sh
 ./campaigns/prepare-zones.sh
-
-screen -dmS evm2-tempo-zones \
-  bash -lc 'cd "$PWD" && exec ./campaigns/tempo-zones-state-loop.sh'
 ```
 
-This pins the latest-Tempo integration stack containing TIP-1096/TIP-1098 and the latest Zones
-`prover` stack. The Zone sequencer runs the checker in observe mode while two independent gates run
-continuously:
+Then start all three campaigns:
 
-- `txgen-tempo-property` generates randomized deposits and withdrawals and reconstructs Portal
-  backing from pinned L1 and Zone snapshots plus complete event histories.
-- `tempo-zone-prover-utils` watches the canonical Zone chain for every
-  `finalizeWithdrawalBatch` system transaction, independently builds the exact boundary-aligned SPF
-  witness, and re-executes that range. Its computed next block hash must equal the sequencer's
-  canonical block hash, which commits to the state root.
+```console
+screen -dmS evm2-ethereum bash -lc 'cd "'"$PWD"'" && exec ./campaigns/ethereum-state-loop.sh'
+screen -dmS evm2-tempo bash -lc 'cd "'"$PWD"'" && exec ./campaigns/tempo-state-loop.sh'
+screen -dmS evm2-zones bash -lc 'cd "'"$PWD"'" && exec ./campaigns/tempo-zones-state-loop.sh'
+```
 
-The local runner does not pretend to produce Nitro attestations. Proof-gated settlement requires an
-AWS Nitro Enclave with `/dev/nsm`; the ordinary fuzz host has no NSM. SPF execution is nevertheless
-enabled as the strict differential oracle, and fails the campaign on any replay mismatch.
+Use `screen -ls` to list them and `screen -r evm2-tempo` (or the other name) to watch one.
 
-All three runners default to a sub-five-minute feedback cycle. Each state oracle emits block and
-transaction inclusion evidence as the chain advances. The Zones runner samples both heads every
-five seconds, checks Portal backing, and requires at least one exact-boundary SPF replay. Completed
-on-chain settlement and withdrawal lifecycles are a separate Nitro-enabled gate.
+## Gates
 
-All runners accept `SEED=<u64>` for replay. Tempo Zones also accepts port overrides such as
-`L1_HTTP_PORT`, `L1_WS_PORT`, `ZONE_HTTP_PORT`, and `ZONE_PRIVATE_PORT` so multiple hosts or isolated
-workers can avoid collisions.
+- Ethereum and Tempo fail semantically only when revm and EVM2 disagree on the state root at the
+  same canonical height. Empty-traffic windows, stalled chains, or a node that never proposes are
+  invalid campaigns and fail as health errors.
+- Both use `tx-fuzz` for randomized EVM programs and `txgen` for structured transactions.
+- Zones randomizes deposit and withdrawal lifecycles, checks L1/Zone progress and Portal backing,
+  settles through the always-true stub verifier, and requires the independent in-process SPF
+  verifier to validate a finalized batch.
+
+Set `SEED=<u64>` to replay a failure. The runner continues replaying that seed until stopped.

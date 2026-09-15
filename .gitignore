@@ -2,4 +2,5 @@ cmd/eip4399/eip4399
 cmd/livefuzzer/livefuzzer
 cmd/shanghai/shanghai
 .idea
-tempo/kurtosis/images.local.json
+.DS_Store
+campaign-runs/

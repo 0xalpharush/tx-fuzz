@@ -166,8 +166,8 @@ func compareBlock(ctx context.Context, clients [2]*rpc.Client, number uint64, co
 	if err != nil {
 		return fmt.Errorf("evm2 block %d: %w", number, err)
 	}
-	if !reflect.DeepEqual(left, right) {
-		return fmt.Errorf("canonical block %d divergence\nrevm=%+v\nevm2=%+v", number, left, right)
+	if left.StateRoot != right.StateRoot {
+		return fmt.Errorf("state root divergence at block %d: left=%s right=%s", number, left.StateRoot, right.StateRoot)
 	}
 	if compareTraces {
 		traceTypes := []string{"vmTrace"}

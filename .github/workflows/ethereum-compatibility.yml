@@ -1,133 +1,51 @@
-name: Ethereum revm vs EVM2 differential
+name: Ethereum revm vs EVM2 state roots
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '17 3 * * 1-5'
   pull_request:
-    paths:
-      - 'ethereum/**'
-      - 'tempo/cmd/tempo-chain-oracle/**'
-      - 'tempo/go.mod'
-      - 'tempo/go.sum'
-      - '.github/workflows/ethereum-compatibility.yml'
-  push:
-    paths:
-      - 'ethereum/**'
-      - 'tempo/cmd/tempo-chain-oracle/**'
-      - 'tempo/go.mod'
-      - 'tempo/go.sum'
-      - '.github/workflows/ethereum-compatibility.yml'
+    paths: ['campaigns/**', 'ethereum/**', 'tempo/**', '.github/workflows/ethereum-compatibility.yml']
 
 permissions:
   contents: read
 
-concurrency:
-  group: ethereum-evm-differential
-  cancel-in-progress: false
-
-env:
-  RETH_REVM_REF: 8a993c0327d92a0e96ec37a021f5ab806026b885
-  RETH_EVM2_REF: 4020f1ab47d37c60779cd4ce36377b86143d0fe6
-  ETHEREUM_PACKAGE_REF: 195fcb9093b7dd6c8d35aaf4a0f7bc956f2f1fa9
-
 jobs:
   differential:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.25.9'
           cache-dependency-path: |
             go.sum
             tempo/go.sum
-
-      - name: Test and build our tx-fuzz image
+      - name: Test campaign tools
         run: |
           go test -race ./...
-          docker build -t tx-fuzz-ethereum:local .
-
-      - name: Fetch exact reth control and candidate sources
+          (cd tempo && go test -race ./...)
+      - name: Check out txgen
         run: |
-          git clone --filter=blob:none https://github.com/paradigmxyz/reth.git reth
-          git -C reth cat-file -e "${RETH_REVM_REF}^{commit}"
-          git -C reth cat-file -e "${RETH_EVM2_REF}^{commit}"
-
-      - name: Build exact revm control image
+          git clone --filter=blob:none https://github.com/tempoxyz/txgen.git ../txgen
+          git -C ../txgen checkout --detach 0d62b7dbf14f338e0fc51750053d2cafe3d55bde
+      - name: Install Kurtosis
         run: |
-          git -C reth checkout --detach "$RETH_REVM_REF"
-          docker buildx create --name reth-differential --use
-          docker buildx build --load \
-            --build-arg BUILD_PROFILE=release \
-            --build-arg 'RUSTFLAGS=-C lto=off -C codegen-units=64' \
-            --cache-from type=gha,scope=reth-revm \
-            --cache-to type=gha,mode=max,scope=reth-revm \
-            --tag reth-revm:local reth
-
-      - name: Build exact EVM2 candidate image
+          curl --fail --location --output kurtosis.tar.gz https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.tar.gz
+          echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis.tar.gz' | sha256sum --check
+          tar -xzf kurtosis.tar.gz kurtosis
+          sudo install kurtosis /usr/local/bin/kurtosis
+      - name: Build exact images and package
+        run: ./campaigns/prepare-ethereum.sh
+      - name: Exercise a continuous campaign window
         run: |
-          git -C reth checkout --detach "$RETH_EVM2_REF"
-          docker buildx build --load \
-            --build-arg BUILD_PROFILE=release \
-            --build-arg 'RUSTFLAGS=-C lto=off -C codegen-units=64' \
-            --cache-from type=gha,scope=reth-revm \
-            --cache-from type=gha,scope=reth-evm2 \
-            --cache-to type=gha,mode=max,scope=reth-evm2 \
-            --tag reth-evm2:local reth
-
-      - name: Fetch pinned Ethereum package and select our tx-fuzz image
-        run: |
-          git clone --filter=blob:none https://github.com/flashbots/kurtosis-ethereum-package.git ethereum-package
-          git -C ethereum-package checkout --detach "$ETHEREUM_PACKAGE_REF"
-          git -C ethereum-package apply "$GITHUB_WORKSPACE/ethereum/kurtosis-ethereum-package.patch"
-
-      - name: Install pinned Kurtosis
-        run: |
-          wget -q --timeout=30 --tries=3 https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.tar.gz
-          echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis-cli_1.20.0_linux_amd64.tar.gz' | sha256sum --check
-          tar -xzf kurtosis-cli_1.20.0_linux_amd64.tar.gz kurtosis
-
-      - name: Launch mixed-engine network and tx-fuzz
-        run: ./kurtosis run --enclave ethereum-evm-diff-${{ github.run_id }} ./ethereum-package --args-file ./ethereum/network_params.yaml 2>&1 | tee kurtosis.log
-
-      - name: Exercise four epochs
-        run: sleep 512
-
-      - name: Assert finalized execution equivalence
-        run: |
-          baseline_url=$(./kurtosis port print ethereum-evm-diff-${{ github.run_id }} el-1-reth-lighthouse rpc)
-          candidate_url=$(./kurtosis port print ethereum-evm-diff-${{ github.run_id }} el-2-reth-lighthouse rpc)
-          ./ethereum/check-finalized.sh "$baseline_url" "$candidate_url" 32 | tee finalized.json
-          cd tempo
-          go run ./cmd/tempo-chain-oracle \
-            --left-rpc="$baseline_url" \
-            --right-rpc="$candidate_url" \
-            --head-tag=finalized \
-            --min-blocks=32 \
-            --exit-after-min-blocks \
-            --duration=10m \
-            --stall-timeout=2m | tee ../rpc-oracle.jsonl
-
-      - name: Capture evidence
-        if: always()
-        continue-on-error: true
-        run: |
-          ./kurtosis service logs --all-services --all ethereum-evm-diff-${{ github.run_id }} > services.log 2>&1
-          ./kurtosis enclave inspect ethereum-evm-diff-${{ github.run_id }} > enclave.txt 2>&1
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          set +e
+          timeout --signal=INT 8m env DURATION=4m ./campaigns/ethereum-state-loop.sh
+          status=$?
+          set -e
+          test "$status" -eq 124 -o "$status" -eq 130
+          grep -R '"event":"passed"' campaign-runs/ethereum/*/oracle.jsonl
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: ethereum-evm-differential-evidence
-          path: |
-            kurtosis.log
-            services.log
-            enclave.txt
-            finalized.json
-            rpc-oracle.jsonl
-
-      - name: Remove only this run's enclave
-        if: always()
-        run: ./kurtosis enclave rm --force ethereum-evm-diff-${{ github.run_id }}
+          name: ethereum-state-root-evidence
+          path: campaign-runs/ethereum/

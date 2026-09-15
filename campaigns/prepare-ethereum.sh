@@ -45,7 +45,14 @@ if [[ ! -d "$package_repo/.git" ]]; then
 fi
 git -C "$package_repo" fetch origin "$package_ref"
 git -C "$package_repo" checkout --detach "$package_ref"
-git -C "$package_repo" apply --unidiff-zero --check "$tx_fuzz_repo/ethereum/kurtosis-ethereum-package.patch"
-git -C "$package_repo" apply --unidiff-zero "$tx_fuzz_repo/ethereum/kurtosis-ethereum-package.patch"
+if git -C "$package_repo" apply --unidiff-zero --check \
+  "$tx_fuzz_repo/ethereum/kurtosis-ethereum-package.patch"; then
+  git -C "$package_repo" apply --unidiff-zero \
+    "$tx_fuzz_repo/ethereum/kurtosis-ethereum-package.patch"
+elif ! git -C "$package_repo" apply --unidiff-zero --reverse --check \
+  "$tx_fuzz_repo/ethereum/kurtosis-ethereum-package.patch"; then
+  echo "Kurtosis Ethereum package does not match the pinned patch" >&2
+  exit 1
+fi
 
 printf 'ethereum campaign images and package are ready\n'

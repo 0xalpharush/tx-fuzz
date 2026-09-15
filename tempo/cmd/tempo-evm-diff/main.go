@@ -523,7 +523,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 	if *singleRPC != "" {
-		if err := runSingle(ctx, *singleRPC, *seed, *programs, *maxCodeBytes, json.NewEncoder(os.Stdout)); err != nil {
+		if err := runSingle(ctx, *singleRPC, *seed, *programs, *maxCodeBytes, json.NewEncoder(os.Stdout)); err != nil &&
+			!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

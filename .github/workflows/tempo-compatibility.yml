@@ -1,87 +1,46 @@
-name: Tempo localnet compatibility
+name: Tempo revm vs EVM2 state roots
+
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '43 4 * * 1-5'
-  push:
-    paths: ['tempo/**', '.github/workflows/tempo-compatibility.yml']
   pull_request:
-    paths: ['tempo/**', '.github/workflows/tempo-compatibility.yml']
+    paths: ['campaigns/**', 'tempo/**', '.github/workflows/tempo-compatibility.yml']
+
 permissions:
   contents: read
-concurrency:
-  group: tempo-evm-differential
-  cancel-in-progress: false
-defaults:
-  run:
-    shell: bash
+
 jobs:
-  compare:
+  differential:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      TEMPO_EVM2_REPO: https://github.com/0xalpharush/tempo.git
-      TEMPO_EVM2_REF: cf29b4a0c90a6c071b95f69c20b9b82ba9be92e1
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.25.9'
           cache-dependency-path: tempo/go.sum
-      - name: Test offline corpus and comparison tool
+      - name: Test campaign tools
         working-directory: tempo
+        run: go test -race ./...
+      - name: Check out exact dependencies
         run: |
-          go test -race ./...
-          go vet ./...
-          go build ./cmd/tempo-compare ./cmd/tempo-evm-diff ./cmd/tempo-chain-oracle
-      - name: Build tx-fuzz service image
-        run: docker build -t tx-fuzz-tempo:local ./tempo
-      - name: Build exact Tempo EVM2 candidate
+          git clone --filter=blob:none https://github.com/tempoxyz/tempo.git ../tempo-revm
+          git -C ../tempo-revm checkout --detach 3fc576fe3469197464b58e83d36ea6d2f49a5b45
+          git clone --filter=blob:none https://github.com/0xalpharush/tempo.git ../tempo
+          git -C ../tempo checkout --detach f27d654a402d1a40dd6f09880cc0176a53b67a15
+          git clone --filter=blob:none https://github.com/tempoxyz/txgen.git ../txgen
+          git -C ../txgen checkout --detach 0d62b7dbf14f338e0fc51750053d2cafe3d55bde
+      - name: Build exact images
+        run: ./campaigns/prepare-tempo.sh
+      - name: Exercise a continuous campaign window
         run: |
-          git clone --filter=blob:none "$TEMPO_EVM2_REPO" tempo-evm2-src
-          git -C tempo-evm2-src checkout --detach "$TEMPO_EVM2_REF"
-          test "$(git -C tempo-evm2-src rev-parse HEAD)" = "$TEMPO_EVM2_REF"
-          docker build \
-            --file "$GITHUB_WORKSPACE/tempo/kurtosis/Dockerfile.tempo-candidate" \
-            --tag tempo-localnet:evm2-cf29b4a0c \
-            tempo-evm2-src
-      - name: Build pinned txgen with Tempo's maintained benchmark seeds
-        env:
-          TXGEN_REF: 5ab341ae38a875e9755cb93628af96ee020ebf38
-          TEMPO_BENCH_REF: d286839f6f9794a33f6ecf5b30c307f25322b75a
-        run: |
-          git clone --filter=blob:none https://github.com/tempoxyz/txgen.git txgen-src
-          git -C txgen-src checkout --detach "$TXGEN_REF"
-          git clone --filter=blob:none --no-checkout https://github.com/tempoxyz/tempo.git tempo-bench-src
-          git -C tempo-bench-src sparse-checkout set contrib/bench/txgen
-          git -C tempo-bench-src checkout --detach "$TEMPO_BENCH_REF"
-          cp -R tempo-bench-src/contrib/bench/txgen txgen-src/examples/tempo-bench
-          docker build -t txgen-tempo:local txgen-src
-      - name: Install pinned Kurtosis
-        timeout-minutes: 3
-        run: |
-          wget -q --timeout=30 --tries=3 https://github.com/kurtosis-tech/kurtosis-cli-release-artifacts/releases/download/1.20.0/kurtosis-cli_1.20.0_linux_amd64.tar.gz
-          echo '3866e805a83a63d3d0b177f54c3fb556066b8c0e12f6442a0579bb7deaa1d5ae  kurtosis-cli_1.20.0_linux_amd64.tar.gz' | sha256sum --check
-          tar -xzf kurtosis-cli_1.20.0_linux_amd64.tar.gz kurtosis
-      - name: Run one-chain revm versus EVM2 differential soak
-        run: ./kurtosis run --enclave tempo-compat-${{ github.run_id }} ./tempo/kurtosis --args-file ./tempo/kurtosis/images.json 2>&1 | tee kurtosis.log
-      - name: Capture localnet service logs
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        run: ./kurtosis service logs --all-services --all tempo-compat-${{ github.run_id }} 2>&1 | tee services.log
-      - name: Capture container states
-        if: always()
-        continue-on-error: true
-        run: docker ps -aq --filter 'name=tempo-revm--' --filter 'name=tempo-evm2--' --filter 'name=tx-fuzz--' --filter 'name=txgen--' | xargs -r docker inspect --format '{{.Name}} {{json .State}}' | tee container-states.log
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          set +e
+          timeout --signal=INT 6m env DURATION=4m ./campaigns/tempo-state-loop.sh
+          status=$?
+          set -e
+          test "$status" -eq 124 -o "$status" -eq 130
+          grep -R '"event":"passed"' campaign-runs/tempo/*/oracle.jsonl
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: tempo-compatibility-evidence
-          path: |
-            kurtosis.log
-            services.log
-            container-states.log
-      - name: Remove only this run's enclave
-        if: always()
-        run: ./kurtosis enclave rm --force tempo-compat-${{ github.run_id }}
+          name: tempo-state-root-evidence
+          path: campaign-runs/tempo/

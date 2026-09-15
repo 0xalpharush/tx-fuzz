@@ -1,0 +1,40 @@
+name: Tempo Zones stub and SPF verifier
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['campaigns/**', 'tempo/**', '.github/workflows/zones-compatibility.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check out exact dependencies
+        run: |
+          git clone --filter=blob:none https://github.com/0xalpharush/zones.git ../zones
+          git -C ../zones checkout --detach 1aaabe19b10703c42324ccce4c19a7336f227b21
+          git clone --filter=blob:none https://github.com/0xalpharush/tempo.git ../tempo-tip1098
+          git -C ../tempo-tip1098 checkout --detach 15b79e0c63d0ac98f5b85cae2ba858155b5301d3
+          git clone --filter=blob:none https://github.com/tempoxyz/txgen.git ../txgen
+          git -C ../txgen checkout --detach 0d62b7dbf14f338e0fc51750053d2cafe3d55bde
+      - name: Build exact images
+        run: ./campaigns/prepare-zones.sh
+      - name: Exercise stub settlement and independent SPF verification
+        run: |
+          set +e
+          timeout --signal=INT 7m env DURATION=4m ./campaigns/tempo-zones-state-loop.sh
+          status=$?
+          set -e
+          test "$status" -eq 124 -o "$status" -eq 130
+          grep -R '^SPF_VERIFIED ' campaign-runs/tempo-zones/*/spf-oracle.log
+          grep -R '"event":"passed"' campaign-runs/tempo-zones/*/status.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: tempo-zones-evidence
+          path: campaign-runs/tempo-zones/

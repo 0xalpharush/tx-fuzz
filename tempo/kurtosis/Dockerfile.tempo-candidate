@@ -29,8 +29,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     cargo build --jobs ${CARGO_BUILD_JOBS} --profile dev \
         --bin tempo --features "asm-keccak,jemalloc,localnet" \
         --bin tempo-localnet --features "asm-keccak,jemalloc,localnet" \
+        --bin tempo-xtask \
     && mkdir -p /out \
-    && cp target/debug/tempo target/debug/tempo-localnet /out/
+    && cp target/debug/tempo target/debug/tempo-localnet target/debug/tempo-xtask /out/
 
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 
@@ -41,4 +42,5 @@ RUN apt-get update \
 WORKDIR /data
 COPY --from=builder /out/tempo /usr/local/bin/tempo
 COPY --from=builder /out/tempo-localnet /usr/local/bin/tempo-localnet
+COPY --from=builder /out/tempo-xtask /usr/local/bin/tempo-xtask
 ENTRYPOINT ["/usr/local/bin/tempo-localnet"]

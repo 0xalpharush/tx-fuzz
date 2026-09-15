@@ -71,8 +71,9 @@ run_spf_oracle() {
 
 while true; do
   started=$(date -u +%Y%m%dT%H%M%SZ)
+  started_lower=$(printf '%s' "$started" | tr '[:upper:]' '[:lower:]')
   seed=${SEED:-$((10#$(date -u +%s) ^ RANDOM << 15 ^ RANDOM))}
-  run="tempo-zones-${started,,}-${seed}"
+  run="tempo-zones-${started_lower}-${seed}"
   evidence="$run_root/$run"
   tempo_container="${run}-tempo"
   zone_container="${run}-zone"
@@ -161,6 +162,30 @@ while true; do
         --env "PRIVATE_KEY=$dev_key" tempo-zone-xtask:prover-latest \
         set-encryption-key --l1-rpc-url "$l1_rpc" --portal "$portal" \
         >>"$evidence/provision.log" 2>&1 || result=$?
+    fi
+  fi
+
+  if (( result == 0 )); then
+    portal=$(jq -er .portal "$evidence/zone-config/zone.json")
+    expected_stub=$(jq -er '.alloc["0x5a56000000000000000000000000000000000000"].code' \
+      "$evidence/dev.json")
+    request=$(jq -nc \
+      '{jsonrpc:"2.0",id:1,method:"eth_getCode",params:["0x5a56000000000000000000000000000000000000","latest"]}')
+    actual_stub=$(curl --fail --silent --show-error --header 'content-type: application/json' \
+      --data "$request" "$l1_rpc" | jq -er .result)
+    actual_stub_lower=$(printf '%s' "$actual_stub" | tr '[:upper:]' '[:lower:]')
+    expected_stub_lower=$(printf '%s' "$expected_stub" | tr '[:upper:]' '[:lower:]')
+    if [[ "$actual_stub_lower" != "$expected_stub_lower" ]]; then
+      echo "Tempo L1 does not have the pinned always-true stub verifier" >&2
+      result=1
+    fi
+    request=$(jq -nc --arg to "$portal" \
+      '{jsonrpc:"2.0",id:1,method:"eth_call",params:[{to:$to,data:"0x2b7ac3f3"},"latest"]}')
+    portal_verifier=$(curl --fail --silent --show-error --header 'content-type: application/json' \
+      --data "$request" "$l1_rpc" | jq -er .result)
+    if [[ "${portal_verifier: -40}" != "5a56000000000000000000000000000000000000" ]]; then
+      echo "Zone Portal does not point at the pinned stub verifier" >&2
+      result=1
     fi
   fi
 
