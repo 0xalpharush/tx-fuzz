@@ -1,0 +1,18 @@
+diff --git a/src/el/reth/reth_launcher.star b/src/el/reth/reth_launcher.star
+--- a/src/el/reth/reth_launcher.star
++++ b/src/el/reth/reth_launcher.star
+@@ -150,7 +150,6 @@ def get_reth_config(
+             "--discovery.v5.port={0}".format(discovery_port_udp),
+             "--port={0}".format(discovery_port_tcp),
+-            "--disable-discv4-discovery",
+         ]
+     )
+@@ -163,7 +162,7 @@ def get_reth_config(
+         cmd.append("--builder.gaslimit={0}".format(network_params.gas_limit))
+ 
+     # Handle bootnode configuration with bootnodoor_el_enr override
+-    bootnode_arg = el_shared.get_bootnode_arg(
++    bootnode_arg = el_shared.get_bootnode_enode_arg(
+         plan,
+         launcher,
+         network_params.network,

@@ -45,5 +45,12 @@ if [[ ! -d "$package_repo/.git" ]]; then
 fi
 git -C "$package_repo" fetch origin "$package_ref"
 git -C "$package_repo" checkout --detach "$package_ref"
+package_patch="$tx_fuzz_repo/ethereum/reth-enode-bootnodes.patch"
+if git -C "$package_repo" apply --check "$package_patch"; then
+  git -C "$package_repo" apply "$package_patch"
+elif ! git -C "$package_repo" apply --reverse --check "$package_patch"; then
+  echo "Ethereum package does not match the pinned Reth compatibility patch" >&2
+  exit 1
+fi
 
 printf 'ethereum campaign images and package are ready\n'
