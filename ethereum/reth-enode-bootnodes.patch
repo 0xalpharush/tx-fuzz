@@ -1,7 +1,7 @@
 diff --git a/src/el/reth/reth_launcher.star b/src/el/reth/reth_launcher.star
 --- a/src/el/reth/reth_launcher.star
 +++ b/src/el/reth/reth_launcher.star
-@@ -150,7 +150,6 @@ def get_reth_config(
+@@ -150,5 +150,4 @@ def get_reth_config(
              "--discovery.v5.port={0}".format(discovery_port_udp),
              "--port={0}".format(discovery_port_tcp),
 -            "--disable-discv4-discovery",
