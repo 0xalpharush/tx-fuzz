@@ -23,9 +23,9 @@ elif ! git -C "$zones_repo" apply --reverse --check "$build_patch"; then
   exit 1
 fi
 foundry_patch="$script_repo/zones/foundry-worktree.patch"
-if git -C "$zones_repo" apply --check "$foundry_patch"; then
-  git -C "$zones_repo" apply "$foundry_patch"
-elif ! git -C "$zones_repo" apply --reverse --check "$foundry_patch"; then
+if git -C "$zones_repo" apply --unidiff-zero --check "$foundry_patch"; then
+  git -C "$zones_repo" apply --unidiff-zero "$foundry_patch"
+elif ! git -C "$zones_repo" apply --unidiff-zero --reverse --check "$foundry_patch"; then
   echo "Zones checkout does not match the pinned Foundry patch" >&2
   exit 1
 fi
