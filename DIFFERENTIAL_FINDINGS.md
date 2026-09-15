@@ -104,9 +104,9 @@ original reproducer and a fresh randomized soak.
   witnesses in 6 ms at Tempo head 84, including the previously failing block
   11 proof.
 
-## D-004: Tempo EVM2 candidate does not expose `eth_getMultiProof`
+## D-004: Tempo EVM2 state-root candidate is not a Zones L1 dependency
 
-- Status: confirmed; fix pending
+- Status: confirmed compatibility limitation; not a blocker for these campaigns
 - Found by: direct RPC comparison on the live Tempo revm/EVM2 pair
 - Engines: current Tempo revm baseline and the reth PR 25002 EVM2 candidate
 - Input: identical `eth_getMultiProof` request at Tempo block 11
@@ -114,14 +114,16 @@ original reproducer and a fresh randomized soak.
   witness generation
 - Result: revm handled the method and returned its configured proof-window
   error; EVM2 returned JSON-RPC `-32601 Method not found`.
-- Impact: a Zone sequencer or prover cannot use the EVM2 Tempo candidate as its
-  L1 provider even when sufficient historical state is retained.
+- Impact: this particular Tempo/EVM2 candidate cannot be substituted for the
+  TIP-1098/revm L1 used by the Zones campaign. The Zones runner does not use
+  EVM2: it pins Tempo TIP-1098 with revm, settles through the genesis stub
+  verifier, and checks proofs independently with the rpc-only SPF sub-verifier.
 - Root cause: the EVM2 reth branch predates the RPC addition and is not yet
   rebased onto current reth main.
-- Fix: pending the requested rebase of reth PR 25002 onto current main, with the
-  EVM2 and vmTrace fixes stacked above it.
-- Regression: pending identical successful proof responses from both Tempo
-  implementations.
+- Follow-up: when the Tempo EVM2 lane is refreshed onto a Reth revision that
+  includes `eth_getMultiProof`, add an RPC capability regression there. This is
+  independent of the Zones campaign and is not required for its state/proof
+  oracle.
 
 ## H-001: counted prover wrapper selected an invalid multi-boundary batch
 
