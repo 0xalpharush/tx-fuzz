@@ -1,0 +1,46 @@
+FROM rust:1.96-bookworm@sha256:19817ead3289c8c631c73df281e18b59b172f6a31f4f563290f69cddd06c30e9 AS builder
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        build-essential \
+        clang \
+        libclang-dev \
+        libssl-dev \
+        mold \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+ARG CARGO_BUILD_JOBS=2
+ARG VERGEN_GIT_SHA
+ARG VERGEN_GIT_SHA_SHORT
+
+# Debug symbols and incremental state are unnecessary in the ephemeral campaign
+# image and otherwise consume most of a hosted runner's disk.
+ENV CARGO_PROFILE_DEV_DEBUG=0 \
+    CARGO_PROFILE_DEV_INCREMENTAL=false
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/app/target,sharing=locked,id=tempo-candidate-target \
+    RUSTFLAGS="-C link-arg=-fuse-ld=mold" \
+    cargo build --jobs ${CARGO_BUILD_JOBS} --profile dev \
+        --bin tempo --features "asm-keccak,jemalloc,localnet" \
+        --bin tempo-localnet --features "asm-keccak,jemalloc,localnet" \
+        --bin tempo-xtask \
+    && mkdir -p /out \
+    && cp target/debug/tempo target/debug/tempo-localnet target/debug/tempo-xtask /out/
+
+FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /data
+COPY --from=builder /out/tempo /usr/local/bin/tempo
+COPY --from=builder /out/tempo-localnet /usr/local/bin/tempo-localnet
+COPY --from=builder /out/tempo-xtask /usr/local/bin/tempo-xtask
+ENTRYPOINT ["/usr/local/bin/tempo-localnet"]
