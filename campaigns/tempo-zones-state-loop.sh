@@ -84,7 +84,10 @@ while true; do
   mkdir -p "$evidence/tempo-data" "$evidence/zone-config" "$evidence/leader-data" \
     "$evidence/shadow-data" "$evidence/property-failures"
   jq --arg timestamp "$(printf '0x%x' "$(( $(date -u +%s) - 2 ))")" \
-    '.timestamp = $timestamp' "$genesis_template" >"$evidence/dev.json"
+    --arg verifierCode '0x600160005260206000f3' \
+    '.timestamp = $timestamp
+      | .alloc["0x5a56000000000000000000000000000000000000"].code = $verifierCode' \
+    "$genesis_template" >"$evidence/dev.json"
 
   jq -n \
     --arg event started --arg chain tempo-zones --arg run "$run" --arg started "$started" \

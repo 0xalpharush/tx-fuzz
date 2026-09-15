@@ -148,9 +148,9 @@ original reproducer and a fresh randomized soak.
 - Regression: exact ranges 1..=2, 3..=95, 96..=120, and 121..=240
   passed in seed 1246255787.
 
-## H-002: unproved dev settlement is rejected as `InvalidProof`
+## H-002: ABI-specific dev stub rejects current verifier calls
 
-- Status: invalid campaign configuration; product finding not confirmed
+- Status: harness bug; fixed
 - Found by: Zone node settlement monitor in the same D-005 run
 - Input: first finalized batch, Zone blocks 1 through 6, Tempo checkpoint 11
 - Invariant: a prover-gated Portal must receive the proof format required by
@@ -158,17 +158,15 @@ original reproducer and a fresh randomized soak.
 - Result: the node retried the batch three times; every `submitBatch` reverted
   with selector `0x09bde339` (`InvalidProof`). The Portal remained at its zero
   Zone commitment.
-- Impact: no product impact established. Deposits and Zone blocks advanced, but
-  the misconfigured campaign could not exercise settlement or withdrawals.
-- Root cause: the campaign ran the prover branch's sequencer without a remote
-  Nitro prover, so it submitted an empty/unattested proof to a proof-gated
-  verifier.
-- Fix: run exact-boundary SPF validation independently of settlement, retain an
-  RPC-only same-chain follower for state-root comparison, and keep attested
-  settlement as a separate oracle that runs only when a Nitro prover is
-  configured.
-- Regression: T13 rejection reproduced as expected; exact-boundary SPF
-  regression is pending its first continuous campaign run.
+- Impact: no product impact. Deposits and Zone blocks advanced, but the
+  misconfigured dev verifier prevented settlement and withdrawal processing.
+- Root cause: Tempo's checked-in dev verifier bytecode was compiled for an older
+  `IVerifier.verify` tuple. Zones added `TokenEnablementTransition`, changing the
+  selector, so the ABI-decoding stub reverted before it could return `true`.
+- Fix: the campaign installs a test-only fallback verifier that returns ABI
+  `true` for every calldata shape. Exact-boundary SPF validation remains an
+  independent oracle and does not trust this settlement stub.
+- Regression: pending the fixed-seed `314159265` campaign rerun.
 
 ## H-003: SPF boundary detector treated every ZoneOutbox call as finalization
 
