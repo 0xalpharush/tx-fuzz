@@ -384,6 +384,14 @@ func nonceForKey(ctx context.Context, c *rpc.Client, owner common.Address, key *
 	return nonce.Uint64(), nil
 }
 
+func accountNonce(ctx context.Context, c *rpc.Client, owner common.Address) (uint64, error) {
+	var nonce hexutil.Uint64
+	if err := c.CallContext(ctx, &nonce, "eth_getTransactionCount", owner, "latest"); err != nil {
+		return 0, err
+	}
+	return uint64(nonce), nil
+}
+
 func tempoCallVariant(
 	ctx context.Context,
 	c *rpc.Client,
@@ -395,9 +403,11 @@ func tempoCallVariant(
 ) (raw, feature string, err error) {
 	mode := int((seed + int64(program.Index)) % 8)
 	if mode < 0 {
-		mode += 6
+		mode += 8
 	}
-	nonceKey := big.NewInt(0)
+	// Tempo reserves nonce-key zero for Ethereum-compatible transactions.
+	// Native Tempo transactions use a non-protocol two-dimensional nonce.
+	nonceKey := big.NewInt(1)
 	to := contract
 	calls := []transaction.Call{{To: &to, Value: new(big.Int), Data: program.Calldata}}
 	var feeToken *common.Address
@@ -420,7 +430,7 @@ func tempoCallVariant(
 	switch mode {
 	case 0:
 		feature = "ethereum-dynamic-fee"
-		nonce, nonceErr := nonceForKey(ctx, c, sender.Address(), big.NewInt(0))
+		nonce, nonceErr := accountNonce(ctx, c, sender.Address())
 		if nonceErr != nil {
 			return "", feature, nonceErr
 		}
@@ -432,7 +442,7 @@ func tempoCallVariant(
 		return raw, feature, signErr
 	case 1:
 		feature = "ethereum-legacy"
-		nonce, nonceErr := nonceForKey(ctx, c, sender.Address(), big.NewInt(0))
+		nonce, nonceErr := accountNonce(ctx, c, sender.Address())
 		if nonceErr != nil {
 			return "", feature, nonceErr
 		}
@@ -449,7 +459,7 @@ func tempoCallVariant(
 		calls = append([]transaction.Call{{To: &transaction.AlphaUSDAddress, Value: new(big.Int), Data: transfer.Data}}, calls...)
 	case 4:
 		feature = "parallel-nonce"
-		nonceKey = big.NewInt(1 + int64(program.Index%31))
+		nonceKey = big.NewInt(2 + int64(program.Index%31))
 	case 5:
 		feature = "fee-token"
 		token := transaction.AlphaUSDAddress
@@ -462,7 +472,7 @@ func tempoCallVariant(
 		payer = feePayer
 	case 7:
 		feature = "tempo-authorization"
-		authorityNonce, nonceErr := nonceForKey(ctx, c, authority.Address(), big.NewInt(0))
+		authorityNonce, nonceErr := accountNonce(ctx, c, authority.Address())
 		if nonceErr != nil {
 			return "", feature, nonceErr
 		}
@@ -669,12 +679,9 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 			if err != nil {
 				return err
 			}
-			var deployRaw string
-			if program.Index%3 == 0 {
-				deployRaw, err = signedEthereumRaw(key, uint64(nonce), nil, initcode, nil, program.Index%2 == 0)
-			} else {
-				deployRaw, err = signedRaw(s, uint64(nonce), transaction.Call{Value: new(big.Int), Data: initcode})
-			}
+			// Deploy through the protocol nonce using both Ethereum envelopes. Native
+			// Tempo calls below deliberately use independent nonce keys.
+			deployRaw, err := signedEthereumRaw(key, uint64(nonce), nil, initcode, nil, program.Index%2 == 0)
 			if err != nil {
 				return err
 			}

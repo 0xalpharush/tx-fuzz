@@ -1,0 +1,54 @@
+# Mixed Ethereum and Tempo envelopes for the shared-chain differential campaign.
+chain_id: 1337
+
+accounts:
+  users:
+    mnemonic: "test test test test test test test test test test test junk"
+    range: [0, 5]
+
+templates:
+  tempo_transfer:
+    type: tempo
+    from: { pool: users, select: random }
+    to: "0x0000000000000000000000000000000000000001"
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 300000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+
+  tempo_parallel:
+    type: tempo
+    from: { pool: users, select: random }
+    to: "0x0000000000000000000000000000000000000001"
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 300000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+    nonce_key: "42"
+
+  tempo_expiring:
+    type: tempo
+    from: { pool: users, select: random }
+    to: "0x0000000000000000000000000000000000000001"
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 300000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+    expiring_nonce: true
+    valid_for_secs: 25
+
+  ethereum_dynamic:
+    type: eip1559
+    from: { pool: users, select: random }
+    to: random
+    input: { random_bytes: 256 }
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 500000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+
+mix:
+  - { template: tempo_transfer, weight: 30 }
+  - { template: tempo_parallel, weight: 25 }
+  - { template: tempo_expiring, weight: 15 }
+  - { template: ethereum_dynamic, weight: 30 }

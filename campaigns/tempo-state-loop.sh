@@ -94,11 +94,10 @@ while true; do
   fi
 
   docker run --rm --network "$network" \
-    --env TXGEN_ACCOUNTS=10 \
-    --env 'TXGEN_TIP20_TOKENS=["0x20c0000000000000000000000000000000000000","0x20c0000000000000000000000000000000000001","0x20c0000000000000000000000000000000000002","0x20c0000000000000000000000000000000000003"]' \
-    --entrypoint /bin/sh \
+    --volume "$repo_root/tempo/txgen-mix.yaml:/workload.yaml:ro" \
+    --entrypoint /usr/bin/bash \
     txgen-differential:local -c \
-    "txgen-tempo generate --defer-signing --spec /specs/tempo-bench/presets/mix.yml --duration $duration --seed $seed --rpc $rpc | bench send --rpc-url $rpc --tps 10 --late-signing-spec /specs/tempo-bench/presets/mix.yml --max-concurrent 64 --retries 3 --report console" \
+    "set -o pipefail; txgen-tempo generate --defer-signing --spec /workload.yaml --duration $duration --seed $seed --rpc $rpc | bench send --rpc-url $rpc --tps 10 --late-signing-spec /workload.yaml --max-concurrent 64 --retries 3 --report console" \
     >"$evidence/txgen.log" 2>&1 &
   txgen_pid=$!
   docker run --rm --network "$network" --entrypoint /usr/local/bin/tempo-evm-diff \

@@ -77,8 +77,8 @@ while true; do
       "$repo_root/ethereum/txgen-mix.yaml" >"$evidence/txgen-mix.yaml"
     docker run --rm --network host \
       --volume "$evidence/txgen-mix.yaml:/workload.yaml:ro" \
-      --entrypoint /bin/sh txgen-differential:local -c \
-      "txgen-ethereum generate --spec /workload.yaml --duration $duration --seed $seed --rpc $baseline_url | bench send --rpc-url $baseline_url --tps 10 --max-concurrent 64 --retries 3 --report console" \
+      --entrypoint /usr/bin/bash txgen-differential:local -c \
+      "set -o pipefail; txgen-ethereum generate --spec /workload.yaml --duration $duration --seed $seed --rpc $baseline_url | bench send --rpc-url $baseline_url --tps 10 --max-concurrent 64 --retries 3 --report console" \
       >"$evidence/txgen.log" 2>&1 &
     txgen_pid=$!
     set +e

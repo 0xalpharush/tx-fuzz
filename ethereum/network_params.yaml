@@ -6,6 +6,7 @@ participants:
     el_client_image: reth-evm2:local
     cl_client_type: lighthouse
   - el_client_type: geth
+    el_client_image: ethereum/client-go:v1.13.15
     cl_client_type: lighthouse
 
 network_params:
