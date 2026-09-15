@@ -59,6 +59,153 @@ original reproducer and a fresh randomized soak.
   the host disk filled; repairing it requires either a Docker data reset or a
   clean runner.
 
+## D-002: `tempo-zone dev` cannot provision a Zone after TIP-1092 migration
+
+- Status: confirmed; fix implemented; live regression running
+- Found by: four-minute Tempo L1 + Zone campaign
+- Input: fresh TIP-1098 Tempo dev chain, pathUSD initial token, latest Zones
+  `prover` branch merged with main
+- Invariant: dev provisioning must migrate the initial token's legacy TIP-403
+  transfer-policy binding before calling `ZoneFactory.createZone`
+- Result: `createZone` reverted with
+  `TokenTransferPolicyNotSet (0x8074d401)` on every fresh run.
+- Impact: `tempo-zone dev` cannot start against a current TIP-1092/TIP-1098
+  Tempo chain, blocking local Zone testing and prover fuzzing.
+- Root cause: the normal `create-zone` command performs
+  `migrateTransferPolicyIds`, but the separate dev provisioning path omitted
+  the same prerequisite and called `createZone` directly.
+- Fix: dev provisioning now queries the registry, migrates the initial token
+  when needed, verifies the binding, and only then anchors and creates the
+  Zone.
+- Regression: `cargo check -p zone-node` passes; the rebuilt live campaign is
+  the end-to-end regression.
+
+## D-003: Zone witness generation exceeds Tempo's default proof window
+
+- Status: fixed in campaign; live regression passed
+- Found by: four-minute Tempo L1 + Zone lifecycle/prover campaign
+- Input: SPF witness generation for Zone blocks 1 through 16 while Tempo had
+  advanced to block 86
+- Invariant: every Tempo checkpoint imported by an unfinalized Zone block must
+  remain available for `eth_getMultiProof` while constructing its SPF witness
+- Result: `debug_zoneExecutionWitness` failed at Zone block 5 with an internal
+  `eth_getMultiProof at Tempo block 11` error. Direct reproduction against the
+  Tempo node returned `distance to target block exceeds maximum proof window`.
+- Impact: deposits were processed and backing remained solvent, but the prover
+  could not construct an input for an otherwise healthy Zone chain.
+- Root cause: the test Tempo node used the default historical proof window,
+  while its 500 ms block time moved the imported checkpoint outside that
+  window before the first 16-block Zone batch was collected. The Zone RPC
+  translated the upstream response into generic error `-32603`, hiding the
+  actionable cause.
+- Fix: the Zones campaign starts its archival Tempo node with a historical
+  proof window large enough to cover every checkpoint produced during a run.
+- Regression: the next randomized run generated all Zone and Tempo state
+  witnesses in 6 ms at Tempo head 84, including the previously failing block
+  11 proof.
+
+## D-004: Tempo EVM2 candidate does not expose `eth_getMultiProof`
+
+- Status: confirmed; fix pending
+- Found by: direct RPC comparison on the live Tempo revm/EVM2 pair
+- Engines: current Tempo revm baseline and the reth PR 25002 EVM2 candidate
+- Input: identical `eth_getMultiProof` request at Tempo block 11
+- Invariant: both implementations must expose the RPC methods required by Zone
+  witness generation
+- Result: revm handled the method and returned its configured proof-window
+  error; EVM2 returned JSON-RPC `-32601 Method not found`.
+- Impact: a Zone sequencer or prover cannot use the EVM2 Tempo candidate as its
+  L1 provider even when sufficient historical state is retained.
+- Root cause: the EVM2 reth branch predates the RPC addition and is not yet
+  rebased onto current reth main.
+- Fix: pending the requested rebase of reth PR 25002 onto current main, with the
+  EVM2 and vmTrace fixes stacked above it.
+- Regression: pending identical successful proof responses from both Tempo
+  implementations.
+
+## H-001: counted prover wrapper selected an invalid multi-boundary batch
+
+- Status: harness bug; removed from product findings
+- Found by: Tempo L1 + Zone prover campaign after fixing D-003
+- Input: `generate-input --zone-block-count 16` for Zone blocks 1 through 16;
+  the first settlement boundary was block 6
+- Invariant: a prover batch must end at its sole `finalizeWithdrawalBatch`
+  block; finalization cannot appear in an intermediate block
+- Result: witness collection succeeded, then local SPF validation returned
+  `invalid batch shape` because block 6 finalized withdrawals inside the
+  forced 1-through-16 range.
+- Impact: no product impact. The campaign manufactured an invalid prover input
+  and could have misreported it as a Zones failure.
+- Root cause: counted discovery treated the requested block count as an exact
+  endpoint instead of respecting the protocol's data-dependent settlement
+  boundary.
+- Fix: remove counted standalone input generation from the campaign's
+  correctness path. The SPF oracle now discovers every canonical
+  `finalizeWithdrawalBatch` system transaction and validates each exact range
+  between consecutive boundaries.
+- Regression: exact ranges 1..=2, 3..=95, 96..=120, and 121..=240
+  passed in seed 1246255787.
+
+## H-002: unproved dev settlement is rejected as `InvalidProof`
+
+- Status: invalid campaign configuration; product finding not confirmed
+- Found by: Zone node settlement monitor in the same D-005 run
+- Input: first finalized batch, Zone blocks 1 through 6, Tempo checkpoint 11
+- Invariant: a prover-gated Portal must receive the proof format required by
+  its configured verifier
+- Result: the node retried the batch three times; every `submitBatch` reverted
+  with selector `0x09bde339` (`InvalidProof`). The Portal remained at its zero
+  Zone commitment.
+- Impact: no product impact established. Deposits and Zone blocks advanced, but
+  the misconfigured campaign could not exercise settlement or withdrawals.
+- Root cause: the campaign ran the prover branch's sequencer without a remote
+  Nitro prover, so it submitted an empty/unattested proof to a proof-gated
+  verifier.
+- Fix: run exact-boundary SPF validation independently of settlement, retain an
+  RPC-only same-chain follower for state-root comparison, and keep attested
+  settlement as a separate oracle that runs only when a Nitro prover is
+  configured.
+- Regression: T13 rejection reproduced as expected; exact-boundary SPF
+  regression is pending its first continuous campaign run.
+
+## H-003: SPF boundary detector treated every ZoneOutbox call as finalization
+
+- Status: harness bug; fixed
+- Found by: first continuous exact-boundary SPF campaign
+- Input: randomized user call to `ZoneOutbox` in Zone block 76
+- Invariant: only the `finalizeWithdrawalBatch(uint256,uint64,bytes[])`
+  system transaction terminates an SPF batch
+- Result: the oracle incorrectly selected blocks 3 through 76, found no
+  finalization in the extracted range, and SPF correctly rejected it as an
+  invalid batch shape.
+- Impact: no product impact. The oracle stopped on a valid user transaction and
+  would have reported a false product failure.
+- Root cause: boundary detection matched the ZoneOutbox destination without
+  checking calldata.
+- Fix: require the canonical `finalizeWithdrawalBatch` selector `0xce7025e9`.
+- Regression: the corrected continuous run passed four consecutive real
+  boundaries through Zone block 240.
+
+## D-005: Zone checker rejects valid checkpoint-only blocks
+
+- Status: confirmed; fix pending
+- Found by: same-chain Zone leader and RPC-only follower in seed 1246255787
+- Input: Zone block 1 containing the canonical `advanceTempoHeaders` checkpoint
+  transaction
+- Invariant: checkpoint-only blocks intentionally emit no `TempoAdvanced`
+  event and must remain valid checker input
+- Result: both independent nodes recorded `checker divergence: block 1 is
+  missing TempoAdvanced` even though the payload log confirms the canonical
+  checkpoint transaction and the SPF replay accepts the block.
+- Impact: the observe-only solvency checker marks a valid Zone chain divergent
+  at its first checkpoint-only block and stops checking all later bridge
+  accounting. Zone execution and state roots remain correct.
+- Root cause: the checker event collector unconditionally requires a
+  `TempoAdvanced` receipt event and does not recognize the eventless
+  `advanceTempoHeaders` system transaction.
+- Fix: pending transaction-aware checkpoint decoding in the checker.
+- Regression: pending a unit test plus a live same-chain rerun.
+
 ## Entry template
 
 - Status:

@@ -192,6 +192,7 @@ with open('/output/dev.json', 'w') as output:
                 + "bench send --rpc-url http://tempo-revm:8545 --tps {} ".format(
                     args["txgen_tps"]
                 )
+                + "--late-signing-spec /specs/tempo-bench/presets/mix.yml "
                 + "--max-concurrent 64 --retries 3 --report console",
             ],
             env_vars={

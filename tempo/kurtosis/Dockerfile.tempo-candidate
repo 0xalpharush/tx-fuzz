@@ -13,6 +13,10 @@ RUN apt-get update \
 WORKDIR /app
 COPY . .
 
+ARG CARGO_BUILD_JOBS=2
+ARG VERGEN_GIT_SHA
+ARG VERGEN_GIT_SHA_SHORT
+
 # Debug symbols and incremental state are unnecessary in the ephemeral campaign
 # image and otherwise consume most of a hosted runner's disk.
 ENV CARGO_PROFILE_DEV_DEBUG=0 \
@@ -20,10 +24,13 @@ ENV CARGO_PROFILE_DEV_DEBUG=0 \
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/app/target,sharing=locked,id=tempo-candidate-target \
     RUSTFLAGS="-C link-arg=-fuse-ld=mold" \
-    cargo build --jobs 2 --profile dev \
+    cargo build --jobs ${CARGO_BUILD_JOBS} --profile dev \
         --bin tempo --features "asm-keccak,jemalloc,localnet" \
-        --bin tempo-localnet --features "asm-keccak,jemalloc,localnet"
+        --bin tempo-localnet --features "asm-keccak,jemalloc,localnet" \
+    && mkdir -p /out \
+    && cp target/debug/tempo target/debug/tempo-localnet /out/
 
 FROM debian:bookworm-slim@sha256:4724b8cc51e33e398f0e2e15e18d5ec2851ff0c2280647e1310bc1642182655d
 
@@ -32,6 +39,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /data
-COPY --from=builder /app/target/debug/tempo /usr/local/bin/tempo
-COPY --from=builder /app/target/debug/tempo-localnet /usr/local/bin/tempo-localnet
+COPY --from=builder /out/tempo /usr/local/bin/tempo
+COPY --from=builder /out/tempo-localnet /usr/local/bin/tempo-localnet
 ENTRYPOINT ["/usr/local/bin/tempo-localnet"]

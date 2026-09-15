@@ -1,21 +1,22 @@
 participants:
-  - el_client_type: reth
-    el_client_image: reth-revm:local
-    cl_client_type: lighthouse
-  - el_client_type: reth
-    el_client_image: reth-evm2:local
-    cl_client_type: lighthouse
+  - el_type: reth
+    el_image: reth-revm:local
+    cl_type: lighthouse
+  - el_type: reth
+    el_image: reth-evm2:local
+    cl_type: lighthouse
 
 network_params:
   seconds_per_slot: 4
   genesis_delay: 20
 
 additional_services:
-  - tx_spammer
-  - el_forkmon
+  - tx_fuzz
+  - forkmon
 
-tx_spammer_params:
-  tx_spammer_extra_args:
+tx_fuzz_params:
+  image: tx-fuzz-ethereum:local
+  tx_fuzz_extra_args:
     - "--seed=1"
     - "--accounts=20"
     - "--txcount=2"

@@ -1,17 +1,38 @@
 diff --git a/src/transaction_spammer/transaction_spammer.star b/src/transaction_spammer/transaction_spammer.star
-index 2191a62..8286935 100644
 --- a/src/transaction_spammer/transaction_spammer.star
 +++ b/src/transaction_spammer/transaction_spammer.star
-@@ -22,11 +22,7 @@ def launch_transaction_spammer(
- 
- 
- def get_config(prefunded_addresses, el_uri, tx_spammer_extra_args, electra_fork_epoch):
+@@ -25,5 +25 @@ def get_config(prefunded_addresses, el_uri, tx_spammer_extra_args, electra_fork
 -    # Temp hack to use the old tx-fuzz image until we can get the new one working
 -    if electra_fork_epoch != None:
 -        tx_spammer_image = "ethpandaops/tx-fuzz:kaustinen-281adbc"
 -    else:
 -        tx_spammer_image = "ethpandaops/tx-fuzz:master"
 +    tx_spammer_image = "tx-fuzz-ethereum:local"
- 
-     cmd = [
-         "spam",
+diff --git a/src/package_io/constants.star b/src/package_io/constants.star
+--- a/src/package_io/constants.star
++++ b/src/package_io/constants.star
+@@ -42,3 +42 @@ GENESIS_DATA_MOUNTPOINT_ON_CLIENTS = "/network-configs"
+-GENESIS_CONFIG_MOUNT_PATH_ON_CONTAINER = (
+-    GENESIS_DATA_MOUNTPOINT_ON_CLIENTS + "/network-configs"
+-)
++GENESIS_CONFIG_MOUNT_PATH_ON_CONTAINER = GENESIS_DATA_MOUNTPOINT_ON_CLIENTS
+diff --git a/src/shared_utils/shared_utils.star b/src/shared_utils/shared_utils.star
+--- a/src/shared_utils/shared_utils.star
++++ b/src/shared_utils/shared_utils.star
+@@ -83 +83 @@ def get_devnet_enodes(plan, filename):
+-with open("/network-configs/network-configs/bootnode.txt") as bootnode_file:
++with open("/network-configs/bootnode.txt") as bootnode_file:
+@@ -99 +99 @@ def get_devnet_enrs_list(plan, filename):
+-with open("/network-configs/network-configs/bootstrap_nodes.txt") as bootnode_file:
++with open("/network-configs/bootstrap_nodes.txt") as bootnode_file:
+@@ -117 +117 @@ def get_genesis_fork_version(plan, filename):
+-with open("/network-configs/network-configs/config.yaml", "r") as f:
++with open("/network-configs/config.yaml", "r") as f:
+@@ -135 +135 @@ def get_genesis_validators_root(plan, filename):
+-with open("/network-configs/network-configs/config.yaml", "r") as f:
++with open("/network-configs/config.yaml", "r") as f:
+diff --git a/src/cl/lighthouse/lighthouse_launcher.star b/src/cl/lighthouse/lighthouse_launcher.star
+--- a/src/cl/lighthouse/lighthouse_launcher.star
++++ b/src/cl/lighthouse/lighthouse_launcher.star
+@@ -361 +360,0 @@ def get_lighthouse_beacon_node_config(
+-        "--http-allow-sync-stalled",

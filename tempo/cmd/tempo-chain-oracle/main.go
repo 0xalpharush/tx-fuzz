@@ -157,7 +157,7 @@ func compareRPC(ctx context.Context, clients [2]*rpc.Client, method string, para
 	return nil
 }
 
-func compareBlock(ctx context.Context, clients [2]*rpc.Client, number uint64, out *json.Encoder) error {
+func compareBlock(ctx context.Context, clients [2]*rpc.Client, number uint64, compareTraces bool, out *json.Encoder) error {
 	left, err := getBlock(ctx, clients[0], number)
 	if err != nil {
 		return fmt.Errorf("revm block %d: %w", number, err)
@@ -169,21 +169,23 @@ func compareBlock(ctx context.Context, clients [2]*rpc.Client, number uint64, ou
 	if !reflect.DeepEqual(left, right) {
 		return fmt.Errorf("canonical block %d divergence\nrevm=%+v\nevm2=%+v", number, left, right)
 	}
-	traceTypes := []string{"vmTrace"}
-	if err := compareRPC(ctx, clients, "trace_replayBlockTransactions", hexutil.EncodeUint64(number), traceTypes); err != nil {
-		return err
-	}
-	// The block method already covers every transaction. Sample one transaction
-	// to exercise the separate lookup/response path without doubling trace cost.
-	if len(left.Transactions) > 0 {
-		if err := compareRPC(ctx, clients, "trace_replayTransaction", left.Transactions[0], traceTypes); err != nil {
+	if compareTraces {
+		traceTypes := []string{"vmTrace"}
+		if err := compareRPC(ctx, clients, "trace_replayBlockTransactions", hexutil.EncodeUint64(number), traceTypes); err != nil {
 			return err
+		}
+		// The block method already covers every transaction. Sample one transaction
+		// to exercise the separate lookup/response path without doubling trace cost.
+		if len(left.Transactions) > 0 {
+			if err := compareRPC(ctx, clients, "trace_replayTransaction", left.Transactions[0], traceTypes); err != nil {
+				return err
+			}
 		}
 	}
 	return out.Encode(evidence{number, left.Hash, left.StateRoot, left.ReceiptsRoot, len(left.Transactions)})
 }
 
-func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connectPeers bool, headTag string, minBlocks, maxLag uint64, exitAfterMinimum bool, poll, stall time.Duration, out *json.Encoder) error {
+func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connectPeers, compareTraces bool, headTag string, minBlocks, maxLag uint64, exitAfterMinimum bool, poll, stall time.Duration, out *json.Encoder) error {
 	var clients [2]*rpc.Client
 	var chainIDs [2]uint64
 	for i, endpoint := range endpoints {
@@ -203,7 +205,7 @@ func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connect
 			return err
 		}
 	}
-	if err := out.Encode(map[string]any{"event": "started", "left": endpoints[0], "right": endpoints[1], "chainId": chainIDs[0], "headTag": headTag, "connectedPeers": connectPeers}); err != nil {
+	if err := out.Encode(map[string]any{"event": "started", "left": endpoints[0], "right": endpoints[1], "chainId": chainIDs[0], "headTag": headTag, "connectedPeers": connectPeers, "compareTraces": compareTraces}); err != nil {
 		return err
 	}
 
@@ -211,6 +213,7 @@ func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connect
 	defer ticker.Stop()
 	lastProgress := time.Now()
 	var compared uint64
+	var transactions uint64
 	for {
 		producerHeight, err := height(ctx, clients[0], headTag)
 		if err != nil {
@@ -223,13 +226,21 @@ func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connect
 		commonHeight := min(producerHeight, verifierHeight)
 		for compared < commonHeight {
 			compared++
-			if err := compareBlock(ctx, clients, compared, out); err != nil {
+			left, err := getBlock(ctx, clients[0], compared)
+			if err != nil {
+				return fmt.Errorf("revm block %d: %w", compared, err)
+			}
+			if err := compareBlock(ctx, clients, compared, compareTraces, out); err != nil {
 				return err
 			}
+			transactions += uint64(len(left.Transactions))
 			lastProgress = time.Now()
 		}
 		if exitAfterMinimum && compared >= minBlocks {
-			return out.Encode(map[string]any{"event": "passed", "comparedBlocks": compared})
+			if transactions == 0 {
+				return errors.New("no transactions were included")
+			}
+			return out.Encode(map[string]any{"event": "passed", "comparedBlocks": compared, "includedTransactions": transactions})
 		}
 		if time.Since(lastProgress) > stall {
 			return fmt.Errorf("chain stalled: compared=%d producer=%d verifier=%d for %s", compared, producerHeight, verifierHeight, stall)
@@ -239,10 +250,13 @@ func run(ctx context.Context, endpoints [2]string, expectedChain uint64, connect
 			if compared < minBlocks {
 				return fmt.Errorf("campaign ended after %d blocks, need at least %d", compared, minBlocks)
 			}
+			if transactions == 0 {
+				return errors.New("no transactions were included")
+			}
 			if producerHeight > compared+maxLag || verifierHeight > compared+maxLag {
 				return fmt.Errorf("oracle did not cover the generated tail: compared=%d left=%d right=%d max-lag=%d", compared, producerHeight, verifierHeight, maxLag)
 			}
-			return out.Encode(map[string]any{"event": "passed", "comparedBlocks": compared})
+			return out.Encode(map[string]any{"event": "passed", "comparedBlocks": compared, "includedTransactions": transactions})
 		case <-ticker.C:
 		}
 	}
@@ -253,6 +267,7 @@ func main() {
 	verifier := flag.String("right-rpc", "http://tempo-evm2:8545", "EVM2/candidate RPC")
 	chainID := flag.Uint64("chain-id", 0, "required chain ID; zero accepts any matching pair")
 	connectPeers := flag.Bool("connect-peers", false, "connect right to left with admin_addPeer")
+	compareTraces := flag.Bool("compare-rpc-traces", false, "also compare Parity vmTrace RPC responses")
 	headTag := flag.String("head-tag", "latest", "comparison head: latest, safe, or finalized")
 	duration := flag.Duration("duration", 5*time.Minute, "continuous comparison duration")
 	minBlocks := flag.Uint64("min-blocks", 32, "minimum canonical blocks compared")
@@ -267,7 +282,7 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
 	defer cancel()
-	if err := run(ctx, [2]string{*producer, *verifier}, *chainID, *connectPeers, *headTag, *minBlocks, *maxLag, *exitAfterMinimum, *poll, *stall, json.NewEncoder(os.Stdout)); err != nil {
+	if err := run(ctx, [2]string{*producer, *verifier}, *chainID, *connectPeers, *compareTraces, *headTag, *minBlocks, *maxLag, *exitAfterMinimum, *poll, *stall, json.NewEncoder(os.Stdout)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
