@@ -6,46 +6,60 @@ accounts:
     mnemonic: "test test test test test test test test test test test junk"
     range: [0, 5]
 
+artifacts:
+  ERC20: /specs/erc20.abi.json
+
 templates:
   tempo_transfer:
     type: tempo
     from: { pool: users, select: random }
-    to: "0x0000000000000000000000000000000000000001"
-    value: { uniform: [0, 1000000000000000] }
     gas_limit: 300000
     max_fee_per_gas: 3000000000
     max_priority_fee_per_gas: 1000000000
+    call:
+      to: "0x20c0000000000000000000000000000000000000"
+      abi: ERC20
+      function: transfer
+      args: ["0x000000000000000000000000000000000000dEaD", 1]
 
   tempo_parallel:
     type: tempo
     from: { pool: users, select: random }
-    to: "0x0000000000000000000000000000000000000001"
-    value: { uniform: [0, 1000000000000000] }
     gas_limit: 300000
     max_fee_per_gas: 3000000000
     max_priority_fee_per_gas: 1000000000
     nonce_key: "42"
+    call:
+      to: "0x20c0000000000000000000000000000000000000"
+      abi: ERC20
+      function: transfer
+      args: ["0x000000000000000000000000000000000000dEaD", 1]
 
   tempo_expiring:
     type: tempo
     from: { pool: users, select: random }
-    to: "0x0000000000000000000000000000000000000001"
-    value: { uniform: [0, 1000000000000000] }
     gas_limit: 300000
     max_fee_per_gas: 3000000000
     max_priority_fee_per_gas: 1000000000
     expiring_nonce: true
     valid_for_secs: 25
+    call:
+      to: "0x20c0000000000000000000000000000000000000"
+      abi: ERC20
+      function: transfer
+      args: ["0x000000000000000000000000000000000000dEaD", 1]
 
   ethereum_dynamic:
     type: eip1559
     from: { pool: users, select: random }
-    to: random
-    input: { random_bytes: 256 }
-    value: { uniform: [0, 1000000000000000] }
-    gas_limit: 500000
+    gas_limit: 300000
     max_fee_per_gas: 3000000000
     max_priority_fee_per_gas: 1000000000
+    call:
+      to: "0x20c0000000000000000000000000000000000000"
+      abi: ERC20
+      function: transfer
+      args: ["0x000000000000000000000000000000000000dEaD", 1]
 
 mix:
   - { template: tempo_transfer, weight: 30 }
