@@ -1,27 +1,28 @@
 participants:
-  - el_client_type: reth
-    el_client_image: reth-revm:local
-    cl_client_type: lighthouse
-    cl_client_image: sigp/lighthouse:v4.6.0
-  - el_client_type: reth
-    el_client_image: reth-evm2:local
-    cl_client_type: lighthouse
-    cl_client_image: sigp/lighthouse:v4.6.0
-  - el_client_type: geth
-    el_client_image: ethereum/client-go:v1.13.15
-    cl_client_type: lighthouse
-    cl_client_image: sigp/lighthouse:v4.6.0
+  - el_type: reth
+    el_image: reth-revm:local
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse@sha256:9a62bb8705455136e1cf96613460960f80dc2faa9d75b5c16a3bfcc9210dcdd1
+  - el_type: reth
+    el_image: reth-evm2:local
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse@sha256:9a62bb8705455136e1cf96613460960f80dc2faa9d75b5c16a3bfcc9210dcdd1
+  - el_type: geth
+    el_image: ethereum/client-go@sha256:d8be8a03b09b5f2e62ff8e62c8da6600a13ea8b03f18d4edcf4997fd2bb9d591
+    cl_type: lighthouse
+    cl_image: sigp/lighthouse@sha256:9a62bb8705455136e1cf96613460960f80dc2faa9d75b5c16a3bfcc9210dcdd1
 
 network_params:
   seconds_per_slot: 4
   genesis_delay: 20
 
 additional_services:
-  - tx_spammer
-  - el_forkmon
+  - tx_fuzz
+  - forkmon
 
-tx_spammer_params:
-  tx_spammer_extra_args:
+tx_fuzz_params:
+  image: tx-fuzz-ethereum:local
+  tx_fuzz_extra_args:
     - "--seed=1"
     - "--accounts=20"
     - "--txcount=2"

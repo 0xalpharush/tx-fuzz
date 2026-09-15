@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 work_root=${WORK_ROOT:-"$(dirname "$repo_root")"}
-package_repo=${ETHEREUM_PACKAGE:-"$work_root/ethereum-package-state"}
+package_repo=${ETHEREUM_PACKAGE:-"$work_root/ethereum-package-current"}
 run_root=${RUN_ROOT:-"$repo_root/campaign-runs/ethereum"}
 duration=${DURATION:-4m}
 args_template=${ARGS_TEMPLATE:-"$repo_root/ethereum/network_params.yaml"}
