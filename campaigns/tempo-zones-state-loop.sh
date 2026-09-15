@@ -86,6 +86,7 @@ while true; do
   jq --arg timestamp "$(printf '0x%x' "$(( $(date -u +%s) - 2 ))")" \
     --arg verifierCode '0x600160005260206000f3' \
     '.timestamp = $timestamp
+      | .config.t13Time = 9999999999999
       | .alloc["0x5a56000000000000000000000000000000000000"].code = $verifierCode' \
     "$genesis_template" >"$evidence/dev.json"
 

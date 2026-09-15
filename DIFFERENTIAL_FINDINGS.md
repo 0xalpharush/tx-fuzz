@@ -160,12 +160,14 @@ original reproducer and a fresh randomized soak.
   Zone commitment.
 - Impact: no product impact. Deposits and Zone blocks advanced, but the
   misconfigured dev verifier prevented settlement and withdrawal processing.
-- Root cause: Tempo's checked-in dev verifier bytecode was compiled for an older
-  `IVerifier.verify` tuple. Zones added `TokenEnablementTransition`, changing the
-  selector, so the ABI-decoding stub reverted before it could return `true`.
+- Root cause: the T13 genesis transition reinstalls Tempo's ABI-specific verifier
+  bytecode, overriding the campaign allocation. That bytecode was compiled for
+  an older `IVerifier.verify` tuple; Zones added `TokenEnablementTransition`,
+  changing the selector, so it reverted before returning `true`.
 - Fix: the campaign installs a test-only fallback verifier that returns ABI
-  `true` for every calldata shape. Exact-boundary SPF validation remains an
-  independent oracle and does not trust this settlement stub.
+  `true` for every calldata shape and keeps the dev settlement chain on T12 so
+  T13 cannot replace it. Exact-boundary SPF validation remains an independent
+  oracle and does not trust this settlement stub.
 - Regression: pending the fixed-seed `314159265` campaign rerun.
 
 ## H-003: SPF boundary detector treated every ZoneOutbox call as finalization
