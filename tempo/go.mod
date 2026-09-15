@@ -6,7 +6,7 @@ require (
 	github.com/MariusVanDerWijden/FuzzyVM v0.0.0-20260727100435-c8f260e09738
 	github.com/ethereum/go-ethereum v1.17.5-0.20260713133110-68f711b9defc
 	github.com/stretchr/testify v1.11.1
-	github.com/tempoxyz/tempo-go v0.5.1-0.20260914142949-ece2cbdd911e
+	github.com/tempoxyz/tempo-go v0.5.1-0.20260914205735-e122c6e27170
 )
 
 require (

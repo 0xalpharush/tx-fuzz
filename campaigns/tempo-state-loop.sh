@@ -124,6 +124,18 @@ while true; do
     echo "tx-fuzz did not land an accepted randomized program" >&2
     result=1
   fi
+  for feature in ethereum-dynamic-fee ethereum-legacy tempo-plain batch-tip20-evm \
+    parallel-nonce fee-token fee-sponsored tempo-authorization; do
+    if ! grep -q "\"tempoFeature\":\"$feature\"" "$evidence/tx-fuzz.log"; then
+      echo "tx-fuzz did not exercise $feature" >&2
+      result=1
+    fi
+  done
+  if ! awk '/"tempoFeature":"ethereum-/ && /"outcome":"(accepted|reverted)"/ { found=1 } END { exit !found }' "$evidence/tx-fuzz.log" || \
+    ! awk '/"tempoFeature":"(tempo-|batch-|parallel-|fee-)/ && /"outcome":"(accepted|reverted)"/ { found=1 } END { exit !found }' "$evidence/tx-fuzz.log"; then
+    echo "tx-fuzz did not mine both Ethereum and Tempo envelope families" >&2
+    result=1
+  fi
   if ! grep -q 'constructed proposal' "$evidence/revm.log" || \
     ! grep -q 'constructed proposal' "$evidence/evm2.log"; then
     echo "both engines did not exercise proposal construction" >&2

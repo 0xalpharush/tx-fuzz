@@ -41,8 +41,8 @@ self-delegation and delegation clearing.
 
 ## Tempo
 
-The [Tempo module](tempo/README.md) provides a same-chain differential runner,
-an offline corpus generator, and a continuous random FuzzyVM campaign. It has
+The [Tempo module](tempo/README.md) provides a same-chain state-root oracle and
+a continuous mixed Ethereum/Tempo transaction campaign. It has
 its own Go module and does not change the Ethereum commands above.
 
 ## Differential campaigns
@@ -54,9 +54,10 @@ Two workflows use the same differential invariant and RPC trace oracle:
   Ethereum network, injects this fork's tx-fuzz image as the transaction
   spammer, and requires finalized block hashes, state roots, receipt roots, and
   sampled `vmTrace` responses to agree after four epochs.
-- `tempo-compatibility.yml` runs a revm producer and an EVM2 validating peer on
-  one canonical Tempo chain. tx-fuzz random bytecode and txgen structured Tempo
-  traffic are submitted only to the producer. Tempo's uncertified follow mode,
+- `tempo-compatibility.yml` runs revm and EVM2 as signing validators on one
+  canonical Tempo chain, requires both to propose, and compares their executed
+  state roots. tx-fuzz random Tempo transactions and txgen structured Tempo
+  traffic enter the shared network through one RPC and propagate normally.
   backed by reth's RPC consensus importer, supplies the producer's canonical
   payloads to the peer, which must independently derive identical blocks,
   roots, and `vmTrace` responses.

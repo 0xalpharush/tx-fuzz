@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	tempofuzz "github.com/0xalpharush/tx-fuzz/tempo"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/tempoxyz/tempo-go/pkg/precompiles"
@@ -295,16 +297,195 @@ func nextNonce(ctx context.Context, clients [2]*rpc.Client, sender common.Addres
 }
 
 func signedRaw(s *signer.Signer, nonce uint64, call transaction.Call) (string, error) {
+	return signedTempoRaw(s, nil, nonce, big.NewInt(0), []transaction.Call{call}, nil, nil, nil)
+}
+
+func signedEthereumRaw(key *ecdsa.PrivateKey, nonce uint64, to *common.Address, data []byte, accessList gethtypes.AccessList, legacy bool) (string, error) {
+	chainID := big.NewInt(1337)
+	var tx *gethtypes.Transaction
+	if legacy {
+		tx = gethtypes.NewTx(&gethtypes.LegacyTx{
+			Nonce: nonce, GasPrice: big.NewInt(20_000_000_000), Gas: 5_000_000,
+			To: to, Value: new(big.Int), Data: data,
+		})
+	} else {
+		tx = gethtypes.NewTx(&gethtypes.DynamicFeeTx{
+			ChainID: chainID, Nonce: nonce, GasTipCap: big.NewInt(20_000_000_000),
+			GasFeeCap: big.NewInt(20_000_000_000), Gas: 5_000_000, To: to,
+			Value: new(big.Int), Data: data, AccessList: accessList,
+		})
+	}
+	signed, err := gethtypes.SignTx(tx, gethtypes.LatestSignerForChainID(chainID), key)
+	if err != nil {
+		return "", err
+	}
+	raw, err := signed.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	return hexutil.Encode(raw), nil
+}
+
+func signedTempoRaw(
+	s, feePayer *signer.Signer,
+	nonce uint64,
+	nonceKey *big.Int,
+	calls []transaction.Call,
+	accessList transaction.AccessList,
+	feeToken *common.Address,
+	authorizations []transaction.SignedAuthorization,
+) (string, error) {
 	tx := transaction.NewDefault(1337)
 	tx.Nonce = nonce
+	tx.NonceKey = new(big.Int).Set(nonceKey)
 	tx.Gas = 5_000_000
 	tx.MaxFeePerGas.SetUint64(20_000_000_000)
 	tx.MaxPriorityFeePerGas.SetUint64(20_000_000_000)
-	tx.Calls = []transaction.Call{call}
+	tx.Calls = calls
+	tx.AccessList = accessList
+	tx.AuthorizationList = authorizations
+	if feeToken != nil {
+		tx.FeeToken = *feeToken
+		tx.FeeTokenSet = *feeToken == (common.Address{})
+	}
+	if feePayer != nil {
+		tx.AwaitingFeePayer = true
+	}
 	if err := transaction.SignTransaction(tx, s); err != nil {
 		return "", err
 	}
+	if feePayer != nil {
+		if err := transaction.AddFeePayerSignature(tx, feePayer); err != nil {
+			return "", err
+		}
+	}
 	return transaction.Serialize(tx, nil)
+}
+
+func nonceForKey(ctx context.Context, c *rpc.Client, owner common.Address, key *big.Int) (uint64, error) {
+	address, ok := precompiles.Address("INonce")
+	if !ok {
+		return 0, errors.New("INonce does not have a fixed address")
+	}
+	call, err := precompiles.Call("INonce", address, "getNonce", owner, key)
+	if err != nil {
+		return 0, err
+	}
+	var value hexutil.Bytes
+	if err := c.CallContext(ctx, &value, "eth_call", map[string]any{
+		"to": address, "data": hexutil.Encode(call.Data),
+	}, "latest"); err != nil {
+		return 0, err
+	}
+	nonce := new(big.Int).SetBytes(value)
+	if !nonce.IsUint64() {
+		return 0, fmt.Errorf("nonce for key %s exceeds uint64", key)
+	}
+	return nonce.Uint64(), nil
+}
+
+func tempoCallVariant(
+	ctx context.Context,
+	c *rpc.Client,
+	seed int64,
+	program tempofuzz.Program,
+	senderKey *ecdsa.PrivateKey,
+	sender, feePayer, authority *signer.Signer,
+	contract, recipient common.Address,
+) (raw, feature string, err error) {
+	mode := int((seed + int64(program.Index)) % 8)
+	if mode < 0 {
+		mode += 6
+	}
+	nonceKey := big.NewInt(0)
+	to := contract
+	calls := []transaction.Call{{To: &to, Value: new(big.Int), Data: program.Calldata}}
+	var feeToken *common.Address
+	var payer *signer.Signer
+	var authorizations []transaction.SignedAuthorization
+
+	// Layer access-list handling over half the transactions instead of making it
+	// an isolated mode; the slots are intentionally likely to overlap FuzzyVM IO.
+	var accessList transaction.AccessList
+	if program.Index%2 == 0 {
+		accessList = transaction.AccessList{{
+			Address: contract,
+			StorageKeys: []common.Hash{
+				common.BigToHash(big.NewInt(int64(program.Index % 4))),
+				crypto.Keccak256Hash(program.Calldata),
+			},
+		}}
+	}
+
+	switch mode {
+	case 0:
+		feature = "ethereum-dynamic-fee"
+		nonce, nonceErr := nonceForKey(ctx, c, sender.Address(), big.NewInt(0))
+		if nonceErr != nil {
+			return "", feature, nonceErr
+		}
+		ethereumAccessList := gethtypes.AccessList{}
+		for _, tuple := range accessList {
+			ethereumAccessList = append(ethereumAccessList, gethtypes.AccessTuple{Address: tuple.Address, StorageKeys: tuple.StorageKeys})
+		}
+		raw, signErr := signedEthereumRaw(senderKey, nonce, &contract, program.Calldata, ethereumAccessList, false)
+		return raw, feature, signErr
+	case 1:
+		feature = "ethereum-legacy"
+		nonce, nonceErr := nonceForKey(ctx, c, sender.Address(), big.NewInt(0))
+		if nonceErr != nil {
+			return "", feature, nonceErr
+		}
+		raw, signErr := signedEthereumRaw(senderKey, nonce, &contract, program.Calldata, nil, true)
+		return raw, feature, signErr
+	case 2:
+		feature = "tempo-plain"
+	case 3:
+		feature = "batch-tip20-evm"
+		transfer, callErr := precompiles.Call("ITIP20", transaction.AlphaUSDAddress, "transfer", recipient, big.NewInt(1+int64(program.Index%17)))
+		if callErr != nil {
+			return "", feature, callErr
+		}
+		calls = append([]transaction.Call{{To: &transaction.AlphaUSDAddress, Value: new(big.Int), Data: transfer.Data}}, calls...)
+	case 4:
+		feature = "parallel-nonce"
+		nonceKey = big.NewInt(1 + int64(program.Index%31))
+	case 5:
+		feature = "fee-token"
+		token := transaction.AlphaUSDAddress
+		if program.Index%2 == 0 {
+			token = transaction.PathUSDAddress
+		}
+		feeToken = &token
+	case 6:
+		feature = "fee-sponsored"
+		payer = feePayer
+	case 7:
+		feature = "tempo-authorization"
+		authorityNonce, nonceErr := nonceForKey(ctx, c, authority.Address(), big.NewInt(0))
+		if nonceErr != nil {
+			return "", feature, nonceErr
+		}
+		authorization := transaction.SignedAuthorization{
+			ChainID: big.NewInt(1337), Address: contract, Nonce: authorityNonce,
+		}
+		if program.Index%2 == 0 {
+			authorization.ChainID.SetUint64(0)
+		}
+		if signErr := authorization.Sign(authority); signErr != nil {
+			return "", feature, signErr
+		}
+		authorizations = []transaction.SignedAuthorization{authorization}
+		to = authority.Address()
+		calls[0].To = &to
+	}
+
+	nonce, err := nonceForKey(ctx, c, sender.Address(), nonceKey)
+	if err != nil {
+		return "", feature, err
+	}
+	raw, err = signedTempoRaw(sender, payer, nonce, nonceKey, calls, accessList, feeToken, authorizations)
+	return raw, feature, err
 }
 
 func comparePhase(ctx context.Context, clients [2]*rpc.Client, raw string, sender, recipient, contract common.Address) ([2]execution, error) {
@@ -429,9 +610,28 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 		return err
 	}
 	s := signer.NewSignerFromKey(key)
+	feePayerKey, err := crypto.ToECDSA(crypto.Keccak256([]byte(fmt.Sprintf("tempo fee payer %d", seed))))
+	if err != nil {
+		return err
+	}
+	feePayer := signer.NewSignerFromKey(feePayerKey)
+	authorityKey, err := crypto.ToECDSA(crypto.Keccak256([]byte(fmt.Sprintf("tempo authority %d", seed))))
+	if err != nil {
+		return err
+	}
+	authority := signer.NewSignerFromKey(authorityKey)
 	recipient := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	if err := fund(ctx, c, s.Address()); err != nil {
-		return fmt.Errorf("fund fixture account: %w", err)
+	for _, fixture := range []struct {
+		label   string
+		account common.Address
+	}{
+		{"sender", s.Address()},
+		{"fee payer", feePayer.Address()},
+		{"authority", authority.Address()},
+	} {
+		if err := fund(ctx, c, fixture.account); err != nil {
+			return fmt.Errorf("fund %s fixture account: %w", fixture.label, err)
+		}
 	}
 
 	completed := 0
@@ -468,7 +668,12 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 			if err != nil {
 				return err
 			}
-			deployRaw, err := signedRaw(s, uint64(nonce), transaction.Call{Value: new(big.Int), Data: initcode})
+			var deployRaw string
+			if program.Index%3 == 0 {
+				deployRaw, err = signedEthereumRaw(key, uint64(nonce), nil, initcode, nil, program.Index%2 == 0)
+			} else {
+				deployRaw, err = signedRaw(s, uint64(nonce), transaction.Call{Value: new(big.Int), Data: initcode})
+			}
 			if err != nil {
 				return err
 			}
@@ -489,7 +694,7 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 				if err := c.CallContext(ctx, &nonce, "eth_getTransactionCount", s.Address(), "latest"); err != nil {
 					return err
 				}
-				callRaw, err := signedRaw(s, uint64(nonce), transaction.Call{To: &contract, Value: new(big.Int), Data: program.Calldata})
+				callRaw, feature, err := tempoCallVariant(ctx, c, seed+round, program, key, s, feePayer, authority, contract, recipient)
 				if err != nil {
 					return err
 				}
@@ -501,7 +706,7 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 					"seed": seed + round, "index": program.Index, "programId": program.ID,
 					"phase": "call", "runtime": hex.EncodeToString(program.Runtime),
 					"calldata": hex.EncodeToString(program.Calldata), "rawTransaction": callRaw,
-					"outcome": call.Class,
+					"outcome": call.Class, "tempoFeature": feature,
 				}); err != nil {
 					return err
 				}

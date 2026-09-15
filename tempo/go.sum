@@ -139,6 +139,8 @@ github.com/supranational/blst v0.3.16 h1:bTDadT+3fK497EvLdWRQEjiGnUtzJ7jjIUMF0jq
 github.com/supranational/blst v0.3.16/go.mod h1:jZJtfjgudtNl4en1tzwPIV3KjUnQUvG3/j+w+fVonLw=
 github.com/tempoxyz/tempo-go v0.5.1-0.20260914142949-ece2cbdd911e h1:VhEqSkron6ooDz7X8FJgYUlyFfEH9iJDOJVbeaV+PmY=
 github.com/tempoxyz/tempo-go v0.5.1-0.20260914142949-ece2cbdd911e/go.mod h1:Ju9BMNUyEDDrIQLkfXTjr90mNRpzBS660TkLUDB6VeE=
+github.com/tempoxyz/tempo-go v0.5.1-0.20260914205735-e122c6e27170 h1:5yPj3rzq42nzfCO0yDN4qfhgzin8fBfMsIqYcLraxEE=
+github.com/tempoxyz/tempo-go v0.5.1-0.20260914205735-e122c6e27170/go.mod h1:Ju9BMNUyEDDrIQLkfXTjr90mNRpzBS660TkLUDB6VeE=
 github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=
