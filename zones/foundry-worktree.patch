@@ -1,0 +1,6 @@
+diff --git a/docker/Dockerfile b/docker/Dockerfile
+--- a/docker/Dockerfile
++++ b/docker/Dockerfile
+@@ -33 +33 @@ COPY crates/contracts .
+-RUN forge build --skip test
++RUN git init && forge build --skip test

@@ -22,6 +22,13 @@ elif ! git -C "$zones_repo" apply --reverse --check "$build_patch"; then
   echo "Zones checkout does not match the pinned build patch" >&2
   exit 1
 fi
+foundry_patch="$script_repo/zones/foundry-worktree.patch"
+if git -C "$zones_repo" apply --check "$foundry_patch"; then
+  git -C "$zones_repo" apply "$foundry_patch"
+elif ! git -C "$zones_repo" apply --reverse --check "$foundry_patch"; then
+  echo "Zones checkout does not match the pinned Foundry patch" >&2
+  exit 1
+fi
 
 if [[ ! -e "$tempo_repo/.git" ]]; then
   git clone https://github.com/tempoxyz/tempo.git "$tempo_repo"
