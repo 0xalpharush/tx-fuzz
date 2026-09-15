@@ -117,7 +117,23 @@ while true; do
   wait "$fuzz_pid" || result=$?
   set -e
 
-  txgen_success=$(awk '/Successful:/ {value=$2} END {print value+0}' "$evidence/txgen.log")
+  # The pretty benchmark summary is written concurrently with tracing output, so an INFO
+  # record can split `Successful:` from its value. Parse the completed-run record instead;
+  # after removing ANSI styling it contains a stable `success=<count>` field.
+  txgen_success=$(awk '
+    /Bench send completed/ {
+      line = $0
+      gsub(/\033\[[0-9;]*[[:alpha:]]/, "", line)
+      count = split(line, fields, /[[:space:]]+/)
+      for (i = 1; i <= count; i++) {
+        if (fields[i] ~ /^success=[0-9]+$/) {
+          sub(/^success=/, "", fields[i])
+          value = fields[i]
+        }
+      }
+    }
+    END { print value + 0 }
+  ' "$evidence/txgen.log")
   if (( txgen_success == 0 )); then
     echo "txgen did not land a transaction" >&2
     result=1
