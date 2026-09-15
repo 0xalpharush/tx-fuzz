@@ -1,12 +1,12 @@
 participants:
-  - el_type: reth
-    el_image: reth-revm:local
-    cl_type: lighthouse
-  - el_type: reth
-    el_image: reth-evm2:local
-    cl_type: lighthouse
-  - el_type: geth
-    cl_type: lighthouse
+  - el_client_type: reth
+    el_client_image: reth-revm:local
+    cl_client_type: lighthouse
+  - el_client_type: reth
+    el_client_image: reth-evm2:local
+    cl_client_type: lighthouse
+  - el_client_type: geth
+    cl_client_type: lighthouse
 
 network_params:
   seconds_per_slot: 4
