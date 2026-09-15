@@ -596,9 +596,10 @@ func run(ctx context.Context, endpoints [2]string, seed int64, count, maxCodeByt
 	return out.Encode(map[string]any{"passedPrograms": len(programs), "comparedPhases": phases, "seed": seed})
 }
 
-// runSingle continuously submits randomized FuzzyVM programs to one canonical
-// producer. A validating peer imports those blocks and is checked separately by
-// evm-rpc-oracle. Raw transactions are retained in JSONL for exact replay.
+// runSingle continuously submits randomized FuzzyVM programs through one RPC
+// ingress on a shared multi-validator chain. Both engines may propose and the
+// state-root oracle checks their execution. Raw transactions are retained in
+// JSONL for exact seed replay.
 func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeBytes int, out *json.Encoder) error {
 	c, err := dialEndpoint(ctx, endpoint, "tempo-revm")
 	if err != nil {
@@ -691,9 +692,6 @@ func runSingle(ctx context.Context, endpoint string, seed int64, count, maxCodeB
 				return err
 			}
 			if deploy.Class == outcomeAccepted {
-				if err := c.CallContext(ctx, &nonce, "eth_getTransactionCount", s.Address(), "latest"); err != nil {
-					return err
-				}
 				callRaw, feature, err := tempoCallVariant(ctx, c, seed+round, program, key, s, feePayer, authority, contract, recipient)
 				if err != nil {
 					return err
