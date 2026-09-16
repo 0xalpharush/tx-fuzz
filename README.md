@@ -49,8 +49,9 @@ its own Go module and does not change the Ethereum commands above.
 
 Two workflows use the same differential invariant and RPC trace oracle:
 
-- `ethereum-compatibility.yml` builds the exact revm merge-base and EVM2 head
-  from reth PR 25002. It runs both as participants on one pinned Kurtosis
+- `ethereum-compatibility.yml` builds the exact current revm and EVM2 heads.
+  The EVM2 head contains reth/revm bump `da1377865aea52959417401380ec34ed8e0d930f`.
+  It runs both as participants on one pinned Kurtosis
   Ethereum network, injects this fork's tx-fuzz image as the transaction
   spammer, and requires finalized block hashes, state roots, receipt roots, and
   sampled `vmTrace` responses to agree after four epochs.
@@ -58,7 +59,7 @@ Two workflows use the same differential invariant and RPC trace oracle:
   canonical Tempo chain, requires both to propose, and compares their executed
   state roots. tx-fuzz random Tempo transactions and txgen structured Tempo
   traffic enter the shared network through one RPC and propagate normally.
-  backed by reth's RPC consensus importer, supplies the producer's canonical
+  Reth's RPC consensus importer supplies the producer's canonical
   payloads to the peer, which must independently derive identical blocks,
   roots, and `vmTrace` responses.
 

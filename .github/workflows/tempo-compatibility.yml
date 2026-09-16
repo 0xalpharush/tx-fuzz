@@ -24,9 +24,9 @@ jobs:
       - name: Check out exact dependencies
         run: |
           git clone --filter=blob:none https://github.com/tempoxyz/tempo.git ../tempo-revm
-          git -C ../tempo-revm checkout --detach 3fc576fe3469197464b58e83d36ea6d2f49a5b45
-          git clone --filter=blob:none https://github.com/0xalpharush/tempo.git ../tempo
-          git -C ../tempo checkout --detach f27d654a402d1a40dd6f09880cc0176a53b67a15
+          git -C ../tempo-revm checkout --detach ca57dfdc9e808aea6c48f07978be156cb81a2b7b
+          git clone --filter=blob:none https://github.com/tempoxyz/tempo.git ../tempo
+          git -C ../tempo checkout --detach dffd26048cbeb638bed66c5371e9f254845bd1a1
           git clone --filter=blob:none https://github.com/tempoxyz/txgen.git ../txgen
           git -C ../txgen checkout --detach 0d62b7dbf14f338e0fc51750053d2cafe3d55bde
       - name: Build exact images

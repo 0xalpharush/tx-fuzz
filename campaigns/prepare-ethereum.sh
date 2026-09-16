@@ -6,8 +6,8 @@ work_root=${WORK_ROOT:-"$(dirname "$script_repo")"}
 reth_repo="$work_root/reth"
 package_repo="$work_root/ethereum-package-current"
 tx_fuzz_repo=${TX_FUZZ_REPO:-"$script_repo"}
-revm_ref=${RETH_REVM_REF:-8a993c0327d92a0e96ec37a021f5ab806026b885}
-evm2_ref=${RETH_EVM2_REF:-39b99d8a1594b3417263e67d503b4a1e908a068c}
+revm_ref=${RETH_REVM_REF:-843d459f34f2df17d8c082bd24b70461f9c39475}
+evm2_ref=${RETH_EVM2_REF:-54228809870bd17d99fa9d32d979020555b8a28c}
 package_ref=${ETHEREUM_PACKAGE_REF:-c0db06b29b8266e65c9b80b64895e07058d28d0b}
 
 mkdir -p "$work_root"
@@ -15,8 +15,7 @@ if [[ ! -d "$reth_repo/.git" ]]; then
   git clone --filter=blob:none https://github.com/paradigmxyz/reth.git "$reth_repo"
 fi
 git -C "$reth_repo" fetch https://github.com/0xalpharush/reth.git \
-  "$evm2_ref"
-git -C "$reth_repo" fetch origin "$revm_ref"
+  "$revm_ref" "$evm2_ref"
 
 git -C "$reth_repo" checkout --detach "$revm_ref"
 docker build \

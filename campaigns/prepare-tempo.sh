@@ -6,8 +6,8 @@ work_root=${WORK_ROOT:-"$(dirname "$repo_root")"}
 baseline_repo=${TEMPO_REVM_REPO:-"$work_root/tempo-revm"}
 candidate_repo=${TEMPO_EVM2_REPO:-"$work_root/tempo"}
 txgen_repo=${TXGEN_REPO:-"$work_root/txgen"}
-baseline_ref=${TEMPO_REVM_REF:-3fc576fe3469197464b58e83d36ea6d2f49a5b45}
-candidate_ref=${TEMPO_EVM2_REF:-f27d654a402d1a40dd6f09880cc0176a53b67a15}
+baseline_ref=${TEMPO_REVM_REF:-ca57dfdc9e808aea6c48f07978be156cb81a2b7b}
+candidate_ref=${TEMPO_EVM2_REF:-dffd26048cbeb638bed66c5371e9f254845bd1a1}
 txgen_ref=${TXGEN_REF:-0d62b7dbf14f338e0fc51750053d2cafe3d55bde}
 dockerfile="$repo_root/tempo/kurtosis/Dockerfile.tempo-candidate"
 
