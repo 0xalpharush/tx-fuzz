@@ -1,0 +1,51 @@
+name: Tempo revm vs EVM2 state roots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['campaigns/**', 'tempo/**', '.github/workflows/tempo-compatibility.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.9'
+          cache-dependency-path: tempo/go.sum
+      - name: Test campaign tools
+        working-directory: tempo
+        run: go test -race ./...
+      - name: Check out exact dependencies
+        run: |
+          git clone --filter=blob:none https://github.com/tempoxyz/tempo.git ../tempo-revm
+          git -C ../tempo-revm checkout --detach ca57dfdc9e808aea6c48f07978be156cb81a2b7b
+          git clone --filter=blob:none https://github.com/tempoxyz/tempo.git ../tempo
+          git -C ../tempo checkout --detach dffd26048cbeb638bed66c5371e9f254845bd1a1
+          git clone --filter=blob:none https://github.com/tempoxyz/txgen.git ../txgen
+          git -C ../txgen checkout --detach 0d62b7dbf14f338e0fc51750053d2cafe3d55bde
+      - name: Build exact images
+        run: ./campaigns/prepare-tempo.sh
+      - name: Exercise a continuous campaign window
+        run: |
+          set +e
+          timeout --signal=INT 6m env DURATION=4m ./campaigns/tempo-state-loop.sh
+          status=$?
+          set -e
+          test "$status" -eq 124 -o "$status" -eq 130
+          grep -R '"event":"passed"' campaign-runs/tempo/*/oracle.jsonl
+      - name: Package campaign evidence
+        if: always()
+        run: |
+          mkdir -p campaign-runs/tempo
+          tar --create --gzip --file tempo-state-root-evidence.tar.gz --directory campaign-runs/tempo .
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: tempo-state-root-evidence
+          path: tempo-state-root-evidence.tar.gz

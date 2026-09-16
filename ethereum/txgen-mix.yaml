@@ -1,0 +1,60 @@
+# The runner replaces chain_id with the private network's actual chain ID.
+chain_id: 1
+
+accounts:
+  users:
+    # The Kurtosis package allocates these execution accounts in genesis.
+    mnemonic: "giant issue aisle success illegal bike spike question tent bar rely arctic volcano long crawl hungry vocal artwork sniff fantasy very lucky have athlete"
+    range: [0, 11]
+
+templates:
+  legacy_transfer:
+    type: legacy
+    from: { pool: users, select: random }
+    to: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 21000
+    gas_price: 3000000000
+
+  access_list_precompile:
+    type: eip2930
+    from: { pool: users, select: random }
+    to:
+      choice:
+        - "0x0000000000000000000000000000000000000001"
+        - "0x0000000000000000000000000000000000000002"
+        - "0x0000000000000000000000000000000000000004"
+        - "0x0000000000000000000000000000000000000008"
+        - "0x000000000000000000000000000000000000000a"
+        - "0x0000000000000000000000000000000000000100"
+    input: { random_bytes: 256 }
+    gas_limit: 500000
+    gas_price: 3000000000
+
+  dynamic_random_call:
+    type: eip1559
+    from: { pool: users, select: random }
+    to: random
+    input: { random_bytes: 512 }
+    value: { uniform: [0, 1000000000000000] }
+    gas_limit: 1000000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+
+  dynamic_create:
+    type: eip1559
+    from: { pool: users, select: random }
+    input: { const: "0x600a600c600039600a6000f3600060005260206000f3" }
+    gas_limit: 1000000
+    max_fee_per_gas: 3000000000
+    max_priority_fee_per_gas: 1000000000
+
+mix:
+  - template: legacy_transfer
+    weight: 20
+  - template: access_list_precompile
+    weight: 25
+  - template: dynamic_random_call
+    weight: 30
+  - template: dynamic_create
+    weight: 25

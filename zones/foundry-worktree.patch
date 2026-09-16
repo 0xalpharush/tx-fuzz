@@ -1,0 +1,6 @@
+diff --git a/docker/Dockerfile b/docker/Dockerfile
+--- a/docker/Dockerfile
++++ b/docker/Dockerfile
+@@ -33 +33 @@
+-RUN forge build --skip test
++RUN git init && rm foundry.lock && forge build --skip test

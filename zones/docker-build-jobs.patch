@@ -1,0 +1,12 @@
+diff --git a/docker/Dockerfile.chef b/docker/Dockerfile.chef
+--- a/docker/Dockerfile.chef
++++ b/docker/Dockerfile.chef
+@@ -12,6 +12,8 @@ FROM chef AS builder
+ ARG RUST_PROFILE=profiling
+ ARG RUST_FEATURES="jemalloc"
+ ARG EXTRA_RUSTFLAGS=""
++ARG CARGO_BUILD_JOBS=2
++ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}
+ 
+ RUN apt-get update \
+     && apt-get install --no-install-recommends -y \

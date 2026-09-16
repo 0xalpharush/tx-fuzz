@@ -39,6 +39,34 @@ default; use `--blob-sidecar-version 0` to target a node from before Osaka.
 mix universal (chain id 0) authorizations, wrong chains and nonces,
 self-delegation and delegation clearing.
 
+## Tempo
+
+The [Tempo module](tempo/README.md) provides a same-chain state-root oracle and
+a continuous mixed Ethereum/Tempo transaction campaign. It has
+its own Go module and does not change the Ethereum commands above.
+
+## Differential campaigns
+
+Two workflows use the same differential invariant and RPC trace oracle:
+
+- `ethereum-compatibility.yml` builds the exact current revm and EVM2 heads.
+  The EVM2 head contains reth/revm bump `da1377865aea52959417401380ec34ed8e0d930f`.
+  It runs both as participants on one pinned Kurtosis
+  Ethereum network, injects this fork's tx-fuzz image as the transaction
+  spammer, and requires finalized block hashes, state roots, receipt roots, and
+  sampled `vmTrace` responses to agree after four epochs.
+- `tempo-compatibility.yml` runs revm and EVM2 as signing validators on one
+  canonical Tempo chain, requires both to propose, and compares their executed
+  state roots. tx-fuzz random Tempo transactions and txgen structured Tempo
+  traffic enter the shared network through one RPC and propagate normally.
+  Reth's RPC consensus importer supplies the producer's canonical
+  payloads to the peer, which must independently derive identical blocks,
+  roots, and `vmTrace` responses.
+
+Both workflows pin source commits and retain service logs and reproducer data.
+The Ethereum campaign runs on weekdays and can also be dispatched manually;
+the Tempo campaign runs whenever its harness or workflow changes.
+
 ## Advanced usage
 You can optionally specify a seed parameter or a secret key to use as a faucet
 
